@@ -38,13 +38,15 @@ class DashboardController extends Controller
         // 2. Data Absensi Hari Ini untuk Staff Cabang
         $userAttendance = null;
         $currentShift = null;
+        $branchShifts = collect();
         if ($user->employee) {
-            $userAttendance = Attendance::where('employee_id', $user->employee->id)
+            $userAttendance = Attendance::with(['shift'])
+                ->where('employee_id', $user->employee->id)
                 ->where('date', $today)
                 ->first();
 
-            $currentShift = Shift::where('branch_id', $user->employee->current_branch_id)
-                ->first();
+            $branchShifts = Shift::where('branch_id', $user->employee->current_branch_id)->get();
+            $currentShift = $branchShifts->first();
         }
 
         // 3. Ringkasan KPI Seluruh Jaringan (Admin Pusat)
@@ -99,8 +101,10 @@ class DashboardController extends Controller
                 'attendances_summary' => $attendancesSummary,
             ],
             'userBranch' => $userBranch,
+            'userEmployee' => $user->employee,
             'userAttendance' => $userAttendance,
             'currentShift' => $currentShift,
+            'branchShifts' => $branchShifts,
             'branches' => $branches,
             'todayCashflows' => $todayCashflows,
             'recentAttendances' => $todayAttendances,

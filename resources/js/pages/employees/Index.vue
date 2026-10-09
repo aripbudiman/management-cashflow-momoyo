@@ -275,7 +275,7 @@ const getStatusBadge = (status: string) => {
 </script>
 
 <template>
-    <Head title="Master Karyawan & Akun Login - Momoyo Ops" />
+    <Head title="Master Karyawan - Momoyo Ops" />
 
     <div class="mx-auto max-w-7xl flex-1 space-y-6 p-4 sm:p-6 lg:p-8">
         <!-- HEADER BANNER -->
@@ -292,7 +292,7 @@ const getStatusBadge = (status: string) => {
                 <h1
                     class="text-2xl font-black tracking-tight text-gray-900 sm:text-3xl dark:text-white"
                 >
-                    Master Karyawan & Akun Login
+                    Master Karyawan
                 </h1>
                 <p
                     class="max-w-2xl text-xs text-gray-500 sm:text-sm dark:text-gray-400"
@@ -684,7 +684,9 @@ const getStatusBadge = (status: string) => {
                                         Belum ada data karyawan terdaftar
                                     </p>
                                     <p class="text-xs">
-                                        Klik tombol "Tambah Karyawan Baru" di atas untuk mendaftarkan karyawan dan akun login perdana.
+                                        Klik tombol "Tambah Karyawan Baru" di
+                                        atas untuk mendaftarkan karyawan dan
+                                        akun login perdana.
                                     </p>
                                 </td>
                             </tr>

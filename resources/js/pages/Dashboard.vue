@@ -27,8 +27,11 @@ import {
     UserCheck,
     Users,
     XCircle,
+    ScanFace,
 } from '@lucide/vue';
 import { computed, onMounted, ref } from 'vue';
+import AttendanceModal from '@/components/AttendanceModal.vue';
+import FaceRegistrationModal from '@/components/FaceRegistrationModal.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -64,12 +67,24 @@ const props = defineProps<{
         longitude: number;
         radius_meters: number;
     } | null;
+    userEmployee?: {
+        id: number;
+        nik: string;
+        full_name: string;
+        face_id: string | null;
+        face_photo_path: string | null;
+        face_photo_url: string | null;
+        is_face_registered: boolean;
+    } | null;
     userAttendance?: {
         id: number;
         date: string;
         clock_in_time: string | null;
         clock_in_photo_url: string | null;
+        clock_in_photo_full_url?: string | null;
         clock_out_time: string | null;
+        clock_out_photo_url?: string | null;
+        clock_out_photo_full_url?: string | null;
         status: string;
         notes: string | null;
     } | null;
@@ -80,6 +95,13 @@ const props = defineProps<{
         end_time: string;
         late_tolerance_minutes: number;
     } | null;
+    branchShifts?: Array<{
+        id: number;
+        shift_name: string;
+        start_time: string;
+        end_time: string;
+        late_tolerance_minutes: number;
+    }>;
     branches: Array<{
         id: number;
         branch_code: string;
@@ -169,6 +191,37 @@ const formatRupiah = (val: number) => {
 // Geolocation Mock / Status for preview
 const gpsStatus = ref<'calculating' | 'inside' | 'outside'>('inside');
 const calculatedDistance = ref(18.5); // meter
+
+// Modal Face ID & Attendance State
+const isFaceModalOpen = ref(false);
+const isAttendanceModalOpen = ref(false);
+const attendanceModalMode = ref<'clock_in' | 'clock_out'>('clock_in');
+
+const isFaceRegistered = computed(() => {
+    return Boolean(
+        props.userEmployee?.face_photo_path ||
+        props.userEmployee?.face_id ||
+        props.userEmployee?.is_face_registered,
+    );
+});
+
+const openClockIn = () => {
+    if (!isFaceRegistered.value) {
+        isFaceModalOpen.value = true;
+        return;
+    }
+    attendanceModalMode.value = 'clock_in';
+    isAttendanceModalOpen.value = true;
+};
+
+const openClockOut = () => {
+    if (!isFaceRegistered.value) {
+        isFaceModalOpen.value = true;
+        return;
+    }
+    attendanceModalMode.value = 'clock_out';
+    isAttendanceModalOpen.value = true;
+};
 
 // Lightbox preview modal state
 const previewImageUrl = ref<string | null>(null);
@@ -445,6 +498,34 @@ const closePreview = () => {
                     </div>
                 </CardHeader>
                 <CardContent class="space-y-4 pt-4">
+                    <!-- Face ID Registration Alert if not registered -->
+                    <div
+                        v-if="userEmployee && !isFaceRegistered"
+                        class="rounded-2xl border border-rose-300 bg-rose-50 p-3 text-xs text-rose-900 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200"
+                    >
+                        <div class="mb-1 flex items-center gap-1.5 font-bold">
+                            <ScanFace
+                                class="size-4 animate-pulse text-rose-600"
+                            />
+                            <span>Face ID Belum Terdaftar</span>
+                        </div>
+                        <p
+                            class="mb-2 text-[11px] text-rose-800/90 dark:text-rose-300"
+                        >
+                            Daftarkan wajah Anda terlebih dahulu untuk
+                            verifikasi clock in & out gerai.
+                        </p>
+                        <Button
+                            type="button"
+                            size="sm"
+                            class="h-8 w-full rounded-xl bg-rose-600 text-xs font-bold text-white shadow-sm hover:bg-rose-700"
+                            @click="isFaceModalOpen = true"
+                        >
+                            <Camera class="mr-1.5 size-3.5" />
+                            Daftarkan Wajah Sekarang
+                        </Button>
+                    </div>
+
                     <!-- Geofencing Status Badge -->
                     <div
                         class="flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-3.5 dark:border-emerald-800/60 dark:bg-emerald-950/30"
@@ -458,7 +539,7 @@ const closePreview = () => {
                             <div
                                 class="flex items-center gap-1.5 font-bold text-emerald-800 dark:text-emerald-300"
                             >
-                                <span>Dalam Radius Gerai Momoyo</span>
+                                <span>Radius Gerai Momoyo</span>
                                 <span
                                     class="size-1.5 rounded-full bg-emerald-500"
                                 ></span>
@@ -466,11 +547,8 @@ const closePreview = () => {
                             <p
                                 class="mt-0.5 text-emerald-700/80 dark:text-emerald-400"
                             >
-                                Terdeteksi {{ calculatedDistance }} meter dari
-                                {{
-                                    userBranch?.branch_name ||
-                                    'Momoyo Tebet Raya'
-                                }}
+                                Area
+                                {{ userBranch?.branch_name || 'Gerai Momoyo' }}
                                 (Maks. radius
                                 {{ userBranch?.radius_meters || 50 }}m).
                             </p>
@@ -479,7 +557,7 @@ const closePreview = () => {
 
                     <!-- Attendance Log Today -->
                     <div
-                        class="space-y-3 rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-zinc-800 dark:bg-zinc-900"
+                        class="space-y-2.5 rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-zinc-800 dark:bg-zinc-900"
                     >
                         <div class="flex items-center justify-between text-xs">
                             <span class="font-medium text-gray-500"
@@ -490,7 +568,12 @@ const closePreview = () => {
                             >
                                 <Clock class="size-3.5 text-rose-500" />
                                 {{
-                                    userAttendance?.clock_in_time || '08:52 WIB'
+                                    userAttendance?.clock_in_time
+                                        ? userAttendance.clock_in_time.slice(
+                                              0,
+                                              5,
+                                          ) + ' WIB'
+                                        : 'Belum Absen'
                                 }}
                             </span>
                         </div>
@@ -499,37 +582,108 @@ const closePreview = () => {
                                 >Status Kehadiran:</span
                             >
                             <Badge
-                                class="bg-emerald-100 text-[11px] font-bold text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300"
+                                v-if="userAttendance?.clock_in_time"
+                                :class="
+                                    userAttendance.status === 'terlambat'
+                                        ? 'border-amber-300 bg-amber-100 text-amber-800'
+                                        : 'border-emerald-300 bg-emerald-100 text-emerald-800'
+                                "
+                                class="text-[10px] font-bold"
                             >
-                                Hadir Tepat Waktu
+                                {{
+                                    userAttendance.status === 'terlambat'
+                                        ? 'Terlambat'
+                                        : 'Hadir Tepat Waktu'
+                                }}
                             </Badge>
+                            <span
+                                v-else
+                                class="text-[11px] font-medium text-gray-400"
+                                >Menunggu Clock In</span
+                            >
                         </div>
                         <div class="flex items-center justify-between text-xs">
                             <span class="font-medium text-gray-500"
                                 >Clock Out:</span
                             >
-                            <span class="font-bold text-gray-400"
-                                >Belum Clock-Out (Shift Berlangsung)</span
+                            <span
+                                class="font-bold text-gray-900 dark:text-gray-100"
                             >
+                                {{
+                                    userAttendance?.clock_out_time
+                                        ? userAttendance.clock_out_time.slice(
+                                              0,
+                                              5,
+                                          ) + ' WIB'
+                                        : userAttendance?.clock_in_time
+                                          ? 'Shift Berlangsung'
+                                          : '-'
+                                }}
+                            </span>
                         </div>
                     </div>
 
                     <!-- Action Buttons -->
-                    <div class="grid grid-cols-2 gap-2 pt-1">
-                        <Button
-                            class="flex h-10 items-center gap-1.5 rounded-xl bg-rose-600 text-xs font-bold text-white shadow-sm shadow-rose-600/30 hover:bg-rose-700"
-                            disabled
+                    <div class="space-y-2 pt-1">
+                        <!-- Case 1: Belum Clock In -->
+                        <div
+                            v-if="!userAttendance?.clock_in_time"
+                            class="grid grid-cols-2 gap-2"
                         >
-                            <CheckCircle2 class="size-4" />
-                            <span>Sudah Clock-In</span>
-                        </Button>
-                        <Button
-                            variant="outline"
-                            class="flex h-10 items-center gap-1.5 rounded-xl border-gray-300 text-xs font-bold text-gray-800 hover:bg-rose-50 hover:text-rose-600 dark:border-zinc-700 dark:text-gray-200"
+                            <Button
+                                class="h-10 items-center gap-1.5 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 text-xs font-bold text-white shadow-md shadow-rose-600/30 hover:from-red-700 hover:to-rose-700"
+                                @click="openClockIn"
+                            >
+                                <Camera class="size-4" />
+                                <span>Clock In Sekarang</span>
+                            </Button>
+                            <Button
+                                as-child
+                                variant="outline"
+                                class="h-10 items-center gap-1.5 rounded-xl border-gray-300 text-xs font-bold hover:bg-rose-50 hover:text-rose-600"
+                            >
+                                <Link href="/attendance">
+                                    <span>Halaman Absen</span>
+                                </Link>
+                            </Button>
+                        </div>
+
+                        <!-- Case 2: Sudah Clock In, Belum Clock Out -->
+                        <div
+                            v-else-if="!userAttendance?.clock_out_time"
+                            class="grid grid-cols-2 gap-2"
                         >
-                            <Clock class="size-4" />
-                            <span>Clock-Out Nanti</span>
-                        </Button>
+                            <Button
+                                class="h-10 items-center gap-1.5 rounded-xl bg-emerald-600 text-xs font-bold text-white shadow-sm"
+                                disabled
+                            >
+                                <CheckCircle2 class="size-4" />
+                                <span>Sudah Masuk</span>
+                            </Button>
+                            <Button
+                                class="h-10 items-center gap-1.5 rounded-xl bg-zinc-900 text-xs font-bold text-white shadow-md hover:bg-black"
+                                @click="openClockOut"
+                            >
+                                <Clock class="size-4 text-rose-400" />
+                                <span>Clock Out</span>
+                            </Button>
+                        </div>
+
+                        <!-- Case 3: Selesai Shift -->
+                        <div v-else>
+                            <Button
+                                as-child
+                                class="h-10 w-full rounded-xl bg-emerald-600 text-xs font-bold text-white hover:bg-emerald-700"
+                            >
+                                <Link href="/attendance">
+                                    <CheckCircle2 class="mr-1.5 size-4" />
+                                    <span
+                                        >Shift Hari Ini Tuntas (Lihat
+                                        Riwayat)</span
+                                    >
+                                </Link>
+                            </Button>
+                        </div>
                     </div>
                 </CardContent>
             </Card>
@@ -682,11 +836,7 @@ const closePreview = () => {
         </div>
 
         <!-- B. KHUSUS ADMIN PUSAT: WIDGET REKONSILIASI SETORAN BANK & MULTI-CABANG -->
-        <div
-            v-if="isAdminPusat"
-            id="reconciliation-section"
-            class="space-y-6"
-        >
+        <div v-if="isAdminPusat" id="reconciliation-section" class="space-y-6">
             <Card class="border-gray-200 shadow-md dark:border-zinc-800">
                 <CardHeader
                     class="border-b border-gray-100 pb-3 dark:border-zinc-800"
@@ -1297,4 +1447,21 @@ const closePreview = () => {
             </div>
         </div>
     </div>
+
+    <!-- MODAL FACE ID REGISTRATION -->
+    <FaceRegistrationModal
+        v-model:open="isFaceModalOpen"
+        :employee-name="userEmployee?.full_name"
+        :is-updating="isFaceRegistered"
+        @success="isFaceModalOpen = false"
+    />
+
+    <!-- MODAL ATTENDANCE (CLOCK IN / CLOCK OUT) -->
+    <AttendanceModal
+        v-model:open="isAttendanceModalOpen"
+        :mode="attendanceModalMode"
+        :branch="userBranch"
+        :shifts="branchShifts"
+        @success="isAttendanceModalOpen = false"
+    />
 </template>

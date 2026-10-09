@@ -235,7 +235,7 @@ const toggleBranchStatus = (b: (typeof props.branches.data)[number]) => {
                     Master Cabang
                 </h1>
                 <p
-                    class="max-w-2xl hidden text-xs text-gray-500 sm:text-sm dark:text-gray-400"
+                    class="max-w-2xl text-xs text-gray-500 sm:text-sm dark:text-gray-400"
                 >
                     Kelola data master seluruh gerai Momoyo, tentukan titik
                     koordinat lintang/bujur (Latitude & Longitude), serta
@@ -542,7 +542,8 @@ const toggleBranchStatus = (b: (typeof props.branches.data)[number]) => {
                 Belum ada gerai cabang terdaftar
             </h3>
             <p class="mt-1 text-xs text-gray-400">
-                Silakan klik tombol "Tambah Cabang Baru" untuk mendaftarkan gerai perdana Anda.
+                Silakan klik tombol "Tambah Cabang Baru" untuk mendaftarkan
+                gerai perdana Anda.
             </p>
             <Button
                 @click="openCreateModal"

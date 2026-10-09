@@ -94,17 +94,18 @@ const isStaffCabang = computed(() => userRole.value === 'staff_cabang');
                     <SidebarMenuItem>
                         <SidebarMenuButton
                             as-child
+                            :is-active="isCurrentUrl('/attendance')"
                             tooltip="Absensi Selfie & GPS"
                         >
-                            <a
-                                href="#absensi-section"
+                            <Link
+                                href="/attendance"
                                 class="flex items-center gap-2.5"
                             >
                                 <Camera class="size-4 text-emerald-500" />
                                 <span class="text-sm font-medium"
-                                    >Absensi Selfie & GPS</span
+                                    >Absensi Kru</span
                                 >
-                            </a>
+                            </Link>
                         </SidebarMenuButton>
                     </SidebarMenuItem>
 

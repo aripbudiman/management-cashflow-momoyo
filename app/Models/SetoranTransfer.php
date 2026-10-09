@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Storage;
 
 class SetoranTransfer extends Model
 {
@@ -22,6 +23,10 @@ class SetoranTransfer extends Model
         'verified_at',
     ];
 
+    protected $appends = [
+        'proof_receipt_full_url',
+    ];
+
     protected function casts(): array
     {
         return [
@@ -29,6 +34,24 @@ class SetoranTransfer extends Model
             'transfer_time' => 'datetime',
             'verified_at' => 'datetime',
         ];
+    }
+
+    public function getProofReceiptFullUrlAttribute(): ?string
+    {
+        if (! $this->proof_receipt_url) {
+            return null;
+        }
+
+        if (str_starts_with($this->proof_receipt_url, 'http') || str_starts_with($this->proof_receipt_url, 'data:')) {
+            return $this->proof_receipt_url;
+        }
+
+        $disk = config('filesystems.default', 's3');
+        if ($disk === 's3') {
+            return Storage::disk('s3')->url($this->proof_receipt_url);
+        }
+
+        return asset('storage/'.$this->proof_receipt_url);
     }
 
     public function cashflow(): BelongsTo

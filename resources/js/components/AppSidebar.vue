@@ -34,17 +34,10 @@ const page = usePage();
 const { isCurrentUrl } = useCurrentUrl();
 
 const userRole = computed(
-    () => page.props.auth.user?.role?.name || 'crew_kasir',
+    () => page.props.auth.user?.role?.name || 'staff_cabang',
 );
-const isOwnerOrSuper = computed(() =>
-    ['owner', 'superadmin'].includes(userRole.value),
-);
-const isFinance = computed(() =>
-    ['finance_pusat', 'owner', 'superadmin'].includes(userRole.value),
-);
-const isOutletStaff = computed(() =>
-    ['crew_kasir', 'store_manager'].includes(userRole.value),
-);
+const isAdminPusat = computed(() => userRole.value === 'admin_pusat');
+const isStaffCabang = computed(() => userRole.value === 'staff_cabang');
 </script>
 
 <template>
@@ -90,8 +83,8 @@ const isOutletStaff = computed(() =>
                 </SidebarMenu>
             </SidebarGroup>
 
-            <!-- GROUP: Operasional Toko (Kru & Store Manager) -->
-            <SidebarGroup v-if="isOutletStaff || isOwnerOrSuper" class="py-1">
+            <!-- GROUP: Operasional Gerai (Staff Cabang & Supervisi Pusat) -->
+            <SidebarGroup v-if="isStaffCabang || isAdminPusat" class="py-1">
                 <SidebarGroupLabel
                     class="text-[11px] font-bold tracking-wider text-muted-foreground/70 uppercase"
                 >
@@ -151,8 +144,8 @@ const isOutletStaff = computed(() =>
                 </SidebarMenu>
             </SidebarGroup>
 
-            <!-- GROUP: Keuangan & Rekonsiliasi (Finance & Owner) -->
-            <SidebarGroup v-if="isFinance" class="py-1">
+            <!-- GROUP: Keuangan & Rekonsiliasi (Admin Pusat) -->
+            <SidebarGroup v-if="isAdminPusat" class="py-1">
                 <SidebarGroupLabel
                     class="text-[11px] font-bold tracking-wider text-muted-foreground/70 uppercase"
                 >
@@ -195,8 +188,8 @@ const isOutletStaff = computed(() =>
                 </SidebarMenu>
             </SidebarGroup>
 
-            <!-- GROUP: Manajemen Cabang & Rolling (Owner & Superadmin) -->
-            <SidebarGroup v-if="isOwnerOrSuper" class="py-1">
+            <!-- GROUP: Master & Rolling Cabang (Admin Pusat) -->
+            <SidebarGroup v-if="isAdminPusat" class="py-1">
                 <SidebarGroupLabel
                     class="text-[11px] font-bold tracking-wider text-muted-foreground/70 uppercase"
                 >
@@ -206,31 +199,36 @@ const isOutletStaff = computed(() =>
                     <SidebarMenuItem>
                         <SidebarMenuButton
                             as-child
-                            tooltip="Master Cabang & GPS"
+                            :is-active="isCurrentUrl('/employees')"
+                            tooltip="Master Karyawan"
                         >
-                            <a
-                                href="#branches-section"
+                            <Link
+                                href="/employees"
                                 class="flex items-center gap-2.5"
                             >
-                                <MapPin class="size-4 text-rose-500" />
+                                <Users class="size-4 text-rose-500" />
                                 <span class="text-sm font-medium"
-                                    >Cabang & Radius GPS</span
+                                    >Master Karyawan</span
                                 >
-                            </a>
+                            </Link>
                         </SidebarMenuButton>
                     </SidebarMenuItem>
 
                     <SidebarMenuItem>
-                        <SidebarMenuButton as-child tooltip="Rolling Karyawan">
-                            <a
-                                href="#rolling-section"
+                        <SidebarMenuButton
+                            as-child
+                            :is-active="isCurrentUrl('/branches')"
+                            tooltip="Master Cabang"
+                        >
+                            <Link
+                                href="/branches"
                                 class="flex items-center gap-2.5"
                             >
-                                <Users class="size-4 text-indigo-500" />
+                                <MapPin class="size-4 text-emerald-500" />
                                 <span class="text-sm font-medium"
-                                    >Rolling Karyawan</span
+                                    >Master Cabang</span
                                 >
-                            </a>
+                            </Link>
                         </SidebarMenuButton>
                     </SidebarMenuItem>
                 </SidebarMenu>

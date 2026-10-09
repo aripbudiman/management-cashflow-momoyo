@@ -100,28 +100,39 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
         return $this->role->name === $roles;
     }
 
+    public function isAdminPusat(): bool
+    {
+        return $this->hasRole('admin_pusat');
+    }
+
+    public function isStaffCabang(): bool
+    {
+        return $this->hasRole('staff_cabang');
+    }
+
+    // Aliases untuk kompatibilitas kode
     public function isOwner(): bool
     {
-        return $this->hasRole('owner');
+        return $this->isAdminPusat();
     }
 
     public function isSuperAdmin(): bool
     {
-        return $this->hasRole(['superadmin', 'owner']);
+        return $this->isAdminPusat();
     }
 
     public function isFinance(): bool
     {
-        return $this->hasRole('finance_pusat');
+        return $this->isAdminPusat();
     }
 
     public function isStoreManager(): bool
     {
-        return $this->hasRole('store_manager');
+        return $this->isStaffCabang();
     }
 
     public function isCrew(): bool
     {
-        return $this->hasRole('crew_kasir');
+        return $this->isStaffCabang();
     }
 }

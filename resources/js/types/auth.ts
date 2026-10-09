@@ -1,11 +1,6 @@
 export type Role = {
     id: number;
-    name:
-        | 'owner'
-        | 'superadmin'
-        | 'finance_pusat'
-        | 'store_manager'
-        | 'crew_kasir';
+    name: 'admin_pusat' | 'staff_cabang';
     display_name: string;
     description?: string;
 };

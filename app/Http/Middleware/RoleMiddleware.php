@@ -32,7 +32,7 @@ class RoleMiddleware
             ]);
         }
 
-        // Allow superadmin or owner by default for management tasks if specified
+        // Validasi kesesuaian peran pengguna dengan rute yang diakses
         if (! empty($roles) && ! $user->hasRole($roles)) {
             abort(403, 'Akses Ditolak: Peran akun Anda ('.($user->role?->display_name ?? 'Tanpa Role').') tidak memiliki izin untuk mengakses halaman ini.');
         }

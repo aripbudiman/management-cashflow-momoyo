@@ -7,12 +7,15 @@ namespace App\Providers;
 use App\Actions\Fortify\CreateNewUser;
 /* @end-chisel-registration */
 use App\Actions\Fortify\ResetUserPassword;
+use App\Models\User;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Laravel\Fortify\Features;
 use Laravel\Fortify\Fortify;
@@ -35,6 +38,7 @@ class FortifyServiceProvider extends ServiceProvider
         $this->configureActions();
         $this->configureViews();
         $this->configureRateLimiting();
+        $this->configureAuthentication();
     }
 
     /**
@@ -46,6 +50,38 @@ class FortifyServiceProvider extends ServiceProvider
         /* @chisel-registration */
         Fortify::createUsersUsing(CreateNewUser::class);
         /* @end-chisel-registration */
+    }
+
+    /**
+     * Configure authentication to support login via email or username.
+     */
+    private function configureAuthentication(): void
+    {
+        Fortify::authenticateUsing(function (Request $request) {
+            $login = trim((string) $request->input(Fortify::username()));
+            $password = (string) $request->input('password');
+
+            if ($login === '' || $password === '') {
+                return null;
+            }
+
+            $user = User::where(function ($query) use ($login) {
+                $query->whereRaw('LOWER(email) = ?', [strtolower($login)])
+                    ->orWhereRaw('LOWER(username) = ?', [strtolower($login)]);
+            })->first();
+
+            if ($user && Hash::check($password, $user->password)) {
+                if (! $user->is_active) {
+                    throw ValidationException::withMessages([
+                        Fortify::username() => ['Akun Anda telah dinonaktifkan oleh Administrator.'],
+                    ]);
+                }
+
+                return $user;
+            }
+
+            return null;
+        });
     }
 
     /**

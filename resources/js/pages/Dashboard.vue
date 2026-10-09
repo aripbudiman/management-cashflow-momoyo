@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, router, usePage } from '@inertiajs/vue3';
+import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import {
     AlertCircle,
     ArrowDownRight,
@@ -130,9 +130,15 @@ const props = defineProps<{
 
 const page = usePage();
 const currentUser = computed(() => page.props.auth.user);
-const roleName = computed(() => currentUser.value?.role?.name || 'crew_kasir');
+const roleName = computed(
+    () => currentUser.value?.role?.name || 'staff_cabang',
+);
+const isAdminPusat = computed(() => roleName.value === 'admin_pusat');
+const isStaffCabang = computed(() => roleName.value === 'staff_cabang');
 const roleTitle = computed(
-    () => currentUser.value?.role?.display_name || 'Karyawan',
+    () =>
+        currentUser.value?.role?.display_name ||
+        (isAdminPusat.value ? 'Admin Pusat' : 'Staff Cabang'),
 );
 
 // Realtime Clock
@@ -163,11 +169,6 @@ const formatRupiah = (val: number) => {
 // Geolocation Mock / Status for preview
 const gpsStatus = ref<'calculating' | 'inside' | 'outside'>('inside');
 const calculatedDistance = ref(18.5); // meter
-
-// Quick Switch Role
-const switchRole = (role: string) => {
-    router.post('/dev-quick-login', { role });
-};
 
 // Lightbox preview modal state
 const previewImageUrl = ref<string | null>(null);
@@ -236,64 +237,6 @@ const closePreview = () => {
                         </span>
                     </p>
                 </div>
-
-                <!-- QUICK SWITCH ROLE BAR (Tester / Reviewer Convenience) -->
-                <div
-                    class="self-start rounded-2xl border border-white/20 bg-black/25 p-3 backdrop-blur-md md:self-auto"
-                >
-                    <div
-                        class="mb-2 flex items-center gap-1.5 text-[11px] font-bold tracking-wider text-rose-200 uppercase"
-                    >
-                        <Users class="size-3.5 text-amber-300" />
-                        <span>Ganti Perspektif Role (Pengujian):</span>
-                    </div>
-                    <div class="flex flex-wrap gap-1.5">
-                        <button
-                            @click="switchRole('owner')"
-                            :class="[
-                                'rounded-lg px-2.5 py-1 text-xs font-bold transition-all',
-                                roleName === 'owner'
-                                    ? 'bg-amber-400 text-amber-950 shadow'
-                                    : 'bg-white/15 text-white hover:bg-white/25',
-                            ]"
-                        >
-                            👑 Owner
-                        </button>
-                        <button
-                            @click="switchRole('finance_pusat')"
-                            :class="[
-                                'rounded-lg px-2.5 py-1 text-xs font-bold transition-all',
-                                roleName === 'finance_pusat'
-                                    ? 'bg-emerald-400 text-emerald-950 shadow'
-                                    : 'bg-white/15 text-white hover:bg-white/25',
-                            ]"
-                        >
-                            📊 Finance
-                        </button>
-                        <button
-                            @click="switchRole('store_manager')"
-                            :class="[
-                                'rounded-lg px-2.5 py-1 text-xs font-bold transition-all',
-                                roleName === 'store_manager'
-                                    ? 'bg-blue-400 text-blue-950 shadow'
-                                    : 'bg-white/15 text-white hover:bg-white/25',
-                            ]"
-                        >
-                            🏪 Manager
-                        </button>
-                        <button
-                            @click="switchRole('crew_kasir')"
-                            :class="[
-                                'rounded-lg px-2.5 py-1 text-xs font-bold transition-all',
-                                roleName === 'crew_kasir'
-                                    ? 'bg-rose-300 text-rose-950 shadow'
-                                    : 'bg-white/15 text-white hover:bg-white/25',
-                            ]"
-                        >
-                            ☕ Kasir
-                        </button>
-                    </div>
-                </div>
             </div>
         </div>
 
@@ -310,7 +253,7 @@ const closePreview = () => {
                         class="text-xs font-bold tracking-wider text-gray-500 uppercase"
                     >
                         {{
-                            ['crew_kasir', 'store_manager'].includes(roleName)
+                            isStaffCabang
                                 ? 'Omset Cabang Hari Ini'
                                 : 'Total Omset Jaringan'
                         }}
@@ -419,7 +362,7 @@ const closePreview = () => {
                         class="text-xs font-bold tracking-wider text-gray-500 uppercase"
                     >
                         {{
-                            ['finance_pusat', 'owner'].includes(roleName)
+                            isAdminPusat
                                 ? 'Setoran Pending Finance'
                                 : 'Status Kehadiran Toko'
                         }}
@@ -434,9 +377,7 @@ const closePreview = () => {
                     <div
                         class="text-2xl font-black tracking-tight text-gray-900 dark:text-white"
                     >
-                        <span
-                            v-if="['finance_pusat', 'owner'].includes(roleName)"
-                        >
+                        <span v-if="isAdminPusat">
                             {{ metrics.pending_transfers_count || 3 }} Cabang
                         </span>
                         <span v-else>
@@ -448,10 +389,7 @@ const closePreview = () => {
                         class="mt-1 flex items-center gap-1 text-xs text-muted-foreground"
                     >
                         <span class="size-2 rounded-full bg-emerald-500"></span>
-                        <span
-                            v-if="['finance_pusat', 'owner'].includes(roleName)"
-                            >Menunggu rekonsiliasi</span
-                        >
+                        <span v-if="isAdminPusat">Menunggu rekonsiliasi</span>
                         <span v-else
                             >{{
                                 metrics.attendances_summary.on_time || 4
@@ -465,9 +403,9 @@ const closePreview = () => {
 
         <!-- SPECIAL ROLE SECTIONS -->
 
-        <!-- A. KHUSUS CREW KASIR & STORE MANAGER: WIDGET ABSENSI & CLOSING OUTLET -->
+        <!-- A. KHUSUS STAFF CABANG: WIDGET ABSENSI & CLOSING OUTLET -->
         <div
-            v-if="['crew_kasir', 'store_manager'].includes(roleName)"
+            v-if="isStaffCabang"
             id="absensi-section"
             class="grid grid-cols-1 gap-6 lg:grid-cols-3"
         >
@@ -743,9 +681,9 @@ const closePreview = () => {
             </Card>
         </div>
 
-        <!-- B. KHUSUS FINANCE PUSAT & OWNER: WIDGET REKONSILIASI SETORAN BANK & MULTI-CABANG -->
+        <!-- B. KHUSUS ADMIN PUSAT: WIDGET REKONSILIASI SETORAN BANK & MULTI-CABANG -->
         <div
-            v-if="['finance_pusat', 'owner', 'superadmin'].includes(roleName)"
+            v-if="isAdminPusat"
             id="reconciliation-section"
             class="space-y-6"
         >
@@ -1018,9 +956,9 @@ const closePreview = () => {
             </Card>
         </div>
 
-        <!-- C. JARINGAN CABANG & GEOFENCING GPS MONITORING (SUPERADMIN / OWNER) -->
+        <!-- C. JARINGAN CABANG & GEOFENCING GPS MONITORING (ADMIN PUSAT) -->
         <div
-            v-if="['owner', 'superadmin'].includes(roleName)"
+            v-if="isAdminPusat"
             id="branches-section"
             class="grid grid-cols-1 gap-6 lg:grid-cols-3"
         >
@@ -1048,16 +986,37 @@ const closePreview = () => {
                                 >
                             </div>
                         </div>
-                        <Button
-                            size="sm"
-                            class="h-8 rounded-xl bg-rose-600 text-xs font-bold text-white hover:bg-rose-700"
-                        >
-                            <Plus class="mr-1 size-3.5" /> Tambah Cabang
-                        </Button>
+                        <div class="flex items-center gap-2">
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                class="h-8 rounded-xl border-gray-300 text-xs font-bold hover:border-rose-300 hover:text-rose-600 dark:border-zinc-700"
+                                as-child
+                            >
+                                <Link href="/employees">
+                                    <Users
+                                        class="mr-1 size-3.5 text-rose-500"
+                                    />
+                                    Kelola Master Karyawan
+                                </Link>
+                            </Button>
+                            <Button
+                                size="sm"
+                                class="h-8 rounded-xl bg-rose-600 text-xs font-bold text-white hover:bg-rose-700"
+                                as-child
+                            >
+                                <Link href="/branches">
+                                    <Plus class="mr-1 size-3.5" /> Kelola Cabang
+                                </Link>
+                            </Button>
+                        </div>
                     </div>
                 </CardHeader>
                 <CardContent class="pt-4">
-                    <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+                    <div
+                        v-if="branches.length > 0"
+                        class="grid grid-cols-1 gap-4 md:grid-cols-3"
+                    >
                         <div
                             v-for="branch in branches"
                             :key="branch.id"
@@ -1103,6 +1062,36 @@ const closePreview = () => {
                                 </Badge>
                             </div>
                         </div>
+                    </div>
+                    <div
+                        v-else
+                        class="flex flex-col items-center justify-center rounded-2xl border border-dashed border-gray-200 py-10 text-center dark:border-zinc-800"
+                    >
+                        <Building2
+                            class="mb-2 size-10 text-gray-300 dark:text-zinc-700"
+                        />
+                        <h4
+                            class="text-sm font-bold text-gray-800 dark:text-gray-200"
+                        >
+                            Belum Ada Gerai / Cabang Terdaftar
+                        </h4>
+                        <p
+                            class="mt-1 max-w-sm text-xs text-gray-500 dark:text-gray-400"
+                        >
+                            Sistem siap digunakan. Silakan tambahkan data cabang
+                            Momoyo perdana Anda untuk mengatur radius geofencing
+                            GPS dan penempatan karyawan.
+                        </p>
+                        <Button
+                            size="sm"
+                            class="mt-4 rounded-xl bg-rose-600 px-4 text-xs font-bold text-white shadow-sm hover:bg-rose-700"
+                            as-child
+                        >
+                            <Link href="/branches">
+                                <Plus class="mr-1.5 size-3.5" /> Tambah Cabang
+                                Perdana
+                            </Link>
+                        </Button>
                     </div>
                 </CardContent>
             </Card>

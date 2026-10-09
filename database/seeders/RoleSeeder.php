@@ -14,29 +14,14 @@ class RoleSeeder extends Seeder
     {
         $roles = [
             [
-                'name' => 'owner',
-                'display_name' => 'Owner',
-                'description' => 'Pemilik bisnis dengan akses monitoring ringkasan eksekutif seluruh cabang.',
+                'name' => 'admin_pusat',
+                'display_name' => 'Admin Pusat',
+                'description' => 'Akses penuh operasional pusat, monitoring seluruh cabang, rekonsiliasi keuangan, dan kelola master karyawan.',
             ],
             [
-                'name' => 'superadmin',
-                'display_name' => 'Superadmin',
-                'description' => 'Akses penuh operasional seluruh cabang, master data, geofencing, dan rolling karyawan.',
-            ],
-            [
-                'name' => 'finance_pusat',
-                'display_name' => 'Finance Pusat',
-                'description' => 'Verifikasi rekonsiliasi setoran harian cabang, pencocokan omzet, dan export laporan.',
-            ],
-            [
-                'name' => 'store_manager',
-                'display_name' => 'Store Manager / Head Kasir',
-                'description' => 'Manajemen operasional cabang, input closing kasir harian, petty cash, dan approval izin crew.',
-            ],
-            [
-                'name' => 'crew_kasir',
-                'display_name' => 'Crew / Kasir Outlet',
-                'description' => 'Karyawan outlet untuk clock-in/out selfie GPS, jadwal shift, dan pengajuan izin/sakit/cuti.',
+                'name' => 'staff_cabang',
+                'display_name' => 'Staff Cabang',
+                'description' => 'Akses operasional gerai cabang untuk absensi selfie GPS, closing kasir harian, kas kecil, dan perizinan.',
             ],
         ];
 

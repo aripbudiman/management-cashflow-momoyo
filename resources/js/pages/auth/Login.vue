@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { Head, useForm } from '@inertiajs/vue3';
 import {
-    Building2,
     CheckCircle2,
     DollarSign,
     KeyRound,
@@ -9,12 +8,9 @@ import {
     LogIn,
     Mail,
     MapPin,
-    Shield,
     Sparkles,
-    UserCheck,
-    Users,
+    User,
 } from '@lucide/vue';
-import { ref } from 'vue';
 import InputError from '@/components/InputError.vue';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -32,82 +28,10 @@ const props = defineProps<{
 }>();
 
 const form = useForm({
-    email: 'owner@momoyo.id',
-    password: 'password',
+    email: '',
+    password: '',
     remember: true,
 });
-
-const isQuickLoggingIn = ref(false);
-
-const demoAccounts = [
-    {
-        role: 'owner',
-        label: 'Owner',
-        name: 'Budi Hartono',
-        email: 'owner@momoyo.id',
-        desc: 'Eksekutif se-jaringan',
-        badge: 'Supervision',
-        badgeColor:
-            'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300',
-        icon: Building2,
-    },
-    {
-        role: 'superadmin',
-        label: 'Superadmin',
-        name: 'Rian Hidayat',
-        email: 'superadmin@momoyo.id',
-        desc: 'Master Cabang & Rolling',
-        badge: 'Full Access',
-        badgeColor:
-            'bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300',
-        icon: Shield,
-    },
-    {
-        role: 'finance_pusat',
-        label: 'Finance Pusat',
-        name: 'Dewi Lestari',
-        email: 'finance@momoyo.id',
-        desc: 'Verifikasi Setoran Harian',
-        badge: 'Reconciliation',
-        badgeColor:
-            'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300',
-        icon: DollarSign,
-    },
-    {
-        role: 'store_manager',
-        label: 'Store Manager',
-        name: 'Agus Pratama',
-        email: 'manager.tebet@momoyo.id',
-        desc: 'Closing & Approval Toko',
-        badge: 'Tebet Raya',
-        badgeColor:
-            'bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300',
-        icon: UserCheck,
-    },
-    {
-        role: 'crew_kasir',
-        label: 'Crew Kasir',
-        name: 'Siti Rahma',
-        email: 'kasir.tebet@momoyo.id',
-        desc: 'Clock-in GPS & Input Kas',
-        badge: 'Outlet Frontliner',
-        badgeColor:
-            'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300',
-        icon: Users,
-    },
-];
-
-const selectDemoAccount = (
-    demo: (typeof demoAccounts)[number],
-    autoSubmit = false,
-) => {
-    form.email = demo.email;
-    form.password = 'password';
-
-    if (autoSubmit) {
-        submitLogin();
-    }
-};
 
 const submitLogin = () => {
     form.post('/login', {
@@ -311,86 +235,30 @@ const submitLogin = () => {
                     {{ status }}
                 </div>
 
-                <!-- DEMO ACCOUNT QUICK-PICKER -->
-                <div
-                    class="mb-6 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
-                >
-                    <div class="mb-2.5 flex items-center justify-between">
-                        <span
-                            class="flex items-center gap-1.5 text-xs font-bold tracking-wider text-gray-700 uppercase dark:text-gray-300"
-                        >
-                            <Sparkles class="size-3.5 text-rose-500" /> Akses
-                            Cepat Demo Role (1-Klik):
-                        </span>
-                        <span class="text-[10px] text-gray-400"
-                            >Pilih untuk auto-fill</span
-                        >
-                    </div>
-
-                    <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                        <button
-                            v-for="demo in demoAccounts"
-                            :key="demo.email"
-                            type="button"
-                            @click="selectDemoAccount(demo)"
-                            :class="[
-                                'flex items-center gap-2.5 rounded-xl border p-2 text-left text-xs transition-all',
-                                form.email === demo.email
-                                    ? 'border-rose-500 bg-rose-50/70 font-semibold text-rose-900 ring-1 ring-rose-500 dark:bg-rose-950/30 dark:text-rose-200'
-                                    : 'border-gray-200 bg-gray-50/50 text-gray-700 hover:border-gray-300 dark:border-zinc-800 dark:bg-zinc-800/40 dark:text-gray-300 dark:hover:border-zinc-700',
-                            ]"
-                        >
-                            <component
-                                :is="demo.icon"
-                                class="size-4 shrink-0 text-rose-500"
-                            />
-                            <div class="flex-1 truncate">
-                                <div class="flex items-center justify-between">
-                                    <span class="truncate font-bold">{{
-                                        demo.label
-                                    }}</span>
-                                    <span
-                                        :class="[
-                                            'py-0.2 rounded px-1.5 text-[9px] font-semibold',
-                                            demo.badgeColor,
-                                        ]"
-                                        >{{ demo.badge }}</span
-                                    >
-                                </div>
-                                <p
-                                    class="truncate text-[10px] text-gray-500 dark:text-gray-400"
-                                >
-                                    {{ demo.email }}
-                                </p>
-                            </div>
-                        </button>
-                    </div>
-                </div>
-
                 <!-- Main Form -->
                 <form @submit.prevent="submitLogin" class="space-y-4">
-                    <!-- Email Input -->
+                    <!-- Email / Username Input -->
                     <div class="space-y-1.5">
                         <Label
                             for="email"
                             class="text-xs font-semibold text-gray-700 dark:text-gray-300"
                         >
-                            Email Momoyo
+                            Email atau Username
                         </Label>
                         <div class="relative">
                             <div
                                 class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-gray-400"
                             >
-                                <Mail class="size-4" />
+                                <User class="size-4" />
                             </div>
                             <Input
                                 id="email"
                                 v-model="form.email"
-                                type="email"
+                                type="text"
                                 required
                                 autofocus
                                 autocomplete="username"
-                                placeholder="nama@momoyo.id"
+                                placeholder="nama@momoyo.id atau username"
                                 class="h-11 rounded-xl border-gray-300 bg-white pl-10 text-sm focus:border-rose-500 focus:ring-rose-500 dark:border-zinc-800 dark:bg-zinc-900"
                             />
                         </div>

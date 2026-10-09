@@ -30,12 +30,12 @@ class DashboardController extends Controller
         $user->loadMissing(['role', 'employee.currentBranch']);
 
         $today = Carbon::today()->toDateString();
-        $roleName = $user->role?->name ?? 'crew_kasir';
+        $roleName = $user->role?->name ?? 'staff_cabang';
 
-        // 1. Data Cabang Pengguna (jika store manager / crew)
+        // 1. Data Cabang Pengguna (jika Staff Cabang)
         $userBranch = $user->employee?->currentBranch;
 
-        // 2. Data Absensi Hari Ini untuk Kru/Kasir
+        // 2. Data Absensi Hari Ini untuk Staff Cabang
         $userAttendance = null;
         $currentShift = null;
         if ($user->employee) {
@@ -47,7 +47,7 @@ class DashboardController extends Controller
                 ->first();
         }
 
-        // 3. Ringkasan KPI Seluruh Jaringan (Owner, Superadmin, Finance)
+        // 3. Ringkasan KPI Seluruh Jaringan (Admin Pusat)
         $totalBranches = Branch::where('is_active', true)->count();
         $totalEmployees = Employee::where('status', 'active')->count();
 

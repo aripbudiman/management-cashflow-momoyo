@@ -5,15 +5,19 @@ import {
     ArrowRight,
     Building2,
     Calendar,
-    Camera,
+    Check,
     CheckCircle,
     CheckCircle2,
+    ChevronDown,
     Clock,
+    Copy,
     ExternalLink,
     Eye,
+    FileText,
     Filter,
     HelpCircle,
     MapPin,
+    MoreHorizontal,
     Navigation,
     Plus,
     RefreshCw,
@@ -47,9 +51,15 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { useGeolocation } from '@/composables/useGeolocation';
-import AppLayout from '@/layouts/AppLayout.vue';
 
 interface EmployeeData {
     id: number;
@@ -101,6 +111,7 @@ interface AttendanceRecord {
     clock_out_photo_url: string | null;
     clock_out_photo_full_url?: string | null;
     clock_out_lat: number | null;
+    clock_out_long?: number | null;
     clock_out_distance_meters: number | null;
     clock_in_face_match_percentage?: number | null;
     clock_out_face_match_percentage?: number | null;
@@ -154,13 +165,14 @@ const props = defineProps<{
         search?: string;
         branch_id?: string;
         status?: string;
+        date?: string;
     };
 }>();
 
 const page = usePage();
 const currentUser = computed(() => page.props.auth.user);
 const isAdminPusat = computed(
-    () => currentUser.value?.role?.name === 'admin_pusat',
+    () => Boolean(props.adminMonitoring) || currentUser.value?.role?.name === 'admin_pusat',
 );
 
 // Realtime Digital Clock
@@ -269,10 +281,34 @@ const triggerClockOut = () => {
     isAttendanceModalOpen.value = true;
 };
 
+// Detail Modal State
+const isDetailModalOpen = ref(false);
+const selectedDetailRecord = ref<AttendanceRecord | null>(null);
+
+const openAttendanceDetail = (rec: AttendanceRecord) => {
+    selectedDetailRecord.value = rec;
+    isDetailModalOpen.value = true;
+};
+
+const copiedCoordType = ref<string | null>(null);
+const copyCoordinates = (
+    lat: number | null,
+    long: number | null,
+    type: string,
+) => {
+    if (lat === null || long === null) return;
+    navigator.clipboard.writeText(`${lat}, ${long}`);
+    copiedCoordType.value = type;
+    setTimeout(() => {
+        copiedCoordType.value = null;
+    }, 2000);
+};
+
 // Admin Search & Filter state
 const search = ref(props.filters?.search || '');
 const filterBranch = ref(props.filters?.branch_id || '');
 const filterStatus = ref(props.filters?.status || '');
+const filterDate = ref(props.filters?.date || '');
 
 const handleFilter = () => {
     router.get(
@@ -281,6 +317,7 @@ const handleFilter = () => {
             search: search.value || undefined,
             branch_id: filterBranch.value || undefined,
             status: filterStatus.value || undefined,
+            date: filterDate.value || undefined,
         },
         { preserveState: true, replace: true },
     );
@@ -290,6 +327,7 @@ const resetFilter = () => {
     search.value = '';
     filterBranch.value = '';
     filterStatus.value = '';
+    filterDate.value = '';
     router.get('/attendance', {}, { replace: true });
 };
 
@@ -336,15 +374,9 @@ const resetEmployeeFace = (employeeId?: number) => {
 </script>
 
 <template>
-    <AppLayout
-        :breadcrumbs="[
-            { title: 'Operasional Gerai', href: '#' },
-            { title: 'Absensi & Face ID', href: '/attendance' },
-        ]"
-    >
-        <Head title="Absensi Kru & Face ID - Momoyo" />
+    <Head title="Absensi Kru & Face ID - Momoyo" />
 
-        <div class="mx-auto max-w-5xl space-y-5 p-3.5 sm:p-6 lg:p-8">
+    <div class="w-full flex-1 space-y-6 p-4 sm:p-6 lg:p-8">
             <!-- Flash Message Banner: Peringatan Ketidakcocokan Wajah / Validasi -->
             <div
                 v-if="$page.props.flash?.warning"
@@ -470,7 +502,344 @@ const resetEmployeeFace = (employeeId?: number) => {
                 </div>
             </div>
 
-            <!-- 2. FACE ID REGISTRATION STATUS BANNER -->
+            <!-- 2. KHUSUS ADMIN PUSAT: MONITORING REALTIME SELURUH CABANG -->
+            <Card
+                v-if="isAdminPusat && adminMonitoring"
+                class="border-gray-200 shadow-md dark:border-zinc-800"
+            >
+                <CardHeader
+                    class="border-b border-gray-100 pb-4 dark:border-zinc-800"
+                >
+                    <div
+                        class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
+                    >
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <Shield class="size-5 text-rose-600" />
+                                <CardTitle class="text-base font-bold"
+                                    >Monitoring Absensi Jaringan
+                                    Cabang</CardTitle
+                                >
+                            </div>
+                            <CardDescription class="mt-0.5 text-xs">
+                                Rekap real-time kehadiran seluruh kru gerai hari
+                                ini ({{ todayDateFormatted }})
+                            </CardDescription>
+                        </div>
+
+                        <!-- KPI Badge Counter -->
+                        <div class="flex flex-wrap items-center gap-2 text-xs">
+                            <span
+                                class="rounded-xl bg-gray-100 px-3 py-1 font-bold text-gray-800 dark:bg-zinc-800 dark:text-gray-200"
+                            >
+                                Total:
+                                {{ adminMonitoring.stats.total_today }} Hadir
+                            </span>
+                            <span
+                                class="rounded-xl bg-emerald-100 px-3 py-1 font-bold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                            >
+                                {{ adminMonitoring.stats.on_time }} Tepat Waktu
+                            </span>
+                            <span
+                                class="rounded-xl bg-amber-100 px-3 py-1 font-bold text-amber-800 dark:bg-amber-950 dark:text-amber-300"
+                            >
+                                {{ adminMonitoring.stats.late }} Terlambat
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Search & Filter Bar -->
+                    <div class="grid grid-cols-1 gap-2.5 pt-3 sm:grid-cols-12">
+                        <div class="relative sm:col-span-4">
+                            <Search
+                                class="absolute top-2.5 left-3 size-4 text-gray-400"
+                            />
+                            <Input
+                                v-model="search"
+                                placeholder="Cari nama kru atau NIK..."
+                                class="h-9 rounded-xl pl-9 text-xs"
+                                @keyup.enter="handleFilter"
+                            />
+                        </div>
+                        <div class="sm:col-span-3">
+                            <select
+                                v-model="filterBranch"
+                                class="h-9 w-full rounded-xl border border-input bg-background px-3 text-xs text-foreground focus:ring-2 focus:ring-rose-500/20"
+                                @change="handleFilter"
+                            >
+                                <option value="">Semua Cabang Gerai</option>
+                                <option
+                                    v-for="b in adminMonitoring.branches"
+                                    :key="b.id"
+                                    :value="b.id"
+                                >
+                                    {{ b.branch_name }}
+                                </option>
+                            </select>
+                        </div>
+                        <div class="sm:col-span-2">
+                            <select
+                                v-model="filterDate"
+                                class="h-9 w-full rounded-xl border border-input bg-background px-3 text-xs text-foreground focus:ring-2 focus:ring-rose-500/20"
+                                @change="handleFilter"
+                            >
+                                <option value="">Hari Ini ({{ todayDate }})</option>
+                                <option value="all">Semua Tanggal</option>
+                            </select>
+                        </div>
+                        <div class="sm:col-span-2">
+                            <select
+                                v-model="filterStatus"
+                                class="h-9 w-full rounded-xl border border-input bg-background px-3 text-xs text-foreground focus:ring-2 focus:ring-rose-500/20"
+                                @change="handleFilter"
+                            >
+                                <option value="">Semua Status</option>
+                                <option value="hadir_tepat_waktu">
+                                    Tepat Waktu
+                                </option>
+                                <option value="terlambat">Terlambat</option>
+                            </select>
+                        </div>
+                        <div class="sm:col-span-1 flex gap-1.5">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                class="h-9 w-full rounded-xl px-2.5 text-xs font-semibold hover:border-rose-300 hover:text-rose-600"
+                                @click="resetFilter"
+                                title="Reset Filter"
+                            >
+                                Reset
+                            </Button>
+                        </div>
+                    </div>
+                </CardHeader>
+                <CardContent class="p-0">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs">
+                            <thead
+                                class="border-b border-gray-100 bg-gray-50/80 font-bold tracking-wider text-gray-500 uppercase dark:border-zinc-800 dark:bg-zinc-900"
+                            >
+                                <tr>
+                                    <th class="px-5 py-3.5 whitespace-nowrap min-w-[200px]">Kru & Cabang</th>
+                                    <th class="px-5 py-3.5 whitespace-nowrap min-w-[140px]">Tanggal & Shift</th>
+                                    <th class="px-5 py-3.5 whitespace-nowrap text-center min-w-[110px]">Clock In</th>
+                                    <th class="px-5 py-3.5 whitespace-nowrap text-center min-w-[110px]">Clock Out</th>
+                                    <th class="px-5 py-3.5 whitespace-nowrap text-center min-w-[100px]">Jarak GPS</th>
+                                    <th class="px-5 py-3.5 whitespace-nowrap min-w-[180px]">Verifikasi Wajah</th>
+                                    <th class="px-5 py-3.5 whitespace-nowrap text-center min-w-[130px]">Status</th>
+                                    <th class="px-5 py-3.5 whitespace-nowrap text-right min-w-[100px]">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody
+                                class="divide-y divide-gray-100 dark:divide-zinc-800"
+                            >
+                                <tr
+                                    v-for="row in adminMonitoring.attendances
+                                        .data"
+                                    :key="row.id"
+                                    class="hover:bg-gray-50/60 dark:hover:bg-zinc-900/50"
+                                >
+                                    <td class="px-5 py-3.5 whitespace-nowrap font-medium">
+                                        <div
+                                            class="text-sm font-bold text-gray-900 dark:text-white"
+                                        >
+                                            {{ row.employee?.full_name || '-' }}
+                                        </div>
+                                        <div class="mt-0.5 flex items-center gap-1.5 text-xs font-normal text-gray-500">
+                                            <span class="font-mono text-[11px] text-gray-400">{{ row.employee?.nik || '-' }}</span>
+                                            <span>•</span>
+                                            <span class="inline-flex items-center gap-1 font-medium text-rose-600 dark:text-rose-400">
+                                                <Building2 class="size-3" />
+                                                {{
+                                                    row.employee?.current_branch
+                                                        ?.branch_name ||
+                                                    row.branch?.branch_name ||
+                                                    'Gerai Pusat'
+                                                }}
+                                            </span>
+                                        </div>
+                                    </td>
+                                    <td
+                                        class="px-5 py-3.5 whitespace-nowrap font-medium text-gray-600 dark:text-gray-400"
+                                    >
+                                        <div class="font-bold text-gray-800 dark:text-gray-200">
+                                            {{ row.date }}
+                                        </div>
+                                        <div class="text-[11px] text-gray-400">
+                                            {{
+                                                row.shift?.shift_name ||
+                                                'Shift Standar'
+                                            }}
+                                        </div>
+                                    </td>
+                                    <td
+                                        class="px-5 py-3.5 whitespace-nowrap text-center font-mono text-sm font-bold text-gray-900 dark:text-white"
+                                    >
+                                        {{
+                                            row.clock_in_time
+                                                ? row.clock_in_time.slice(0, 5)
+                                                : '-'
+                                        }}
+                                        <span v-if="row.clock_in_time" class="ml-0.5 text-[10px] font-normal text-gray-400">WIB</span>
+                                    </td>
+                                    <td
+                                        class="px-5 py-3.5 whitespace-nowrap text-center font-mono text-sm font-bold text-gray-900 dark:text-white"
+                                    >
+                                        {{
+                                            row.clock_out_time
+                                                ? row.clock_out_time.slice(0, 5)
+                                                : '-'
+                                        }}
+                                        <span v-if="row.clock_out_time" class="ml-0.5 text-[10px] font-normal text-gray-400">WIB</span>
+                                    </td>
+                                    <td
+                                        class="px-5 py-3.5 whitespace-nowrap text-center font-medium text-gray-600 dark:text-gray-400"
+                                    >
+                                        <span
+                                            v-if="
+                                                row.clock_in_distance_meters !==
+                                                    null &&
+                                                row.clock_in_distance_meters !==
+                                                    undefined
+                                            "
+                                            class="inline-flex items-center gap-1 font-semibold"
+                                        >
+                                            {{ row.clock_in_distance_meters }}m
+                                        </span>
+                                        <span v-else class="text-gray-400">-</span>
+                                    </td>
+                                    <td class="px-5 py-3.5 whitespace-nowrap">
+                                        <div class="flex items-center gap-2">
+                                            <Badge
+                                                v-if="row.is_face_mismatch"
+                                                class="animate-pulse border-rose-300 bg-rose-100 px-2 py-0.5 text-[11px] font-bold text-rose-800 dark:bg-rose-950 dark:text-rose-300"
+                                            >
+                                                ⚠️ Beda ({{
+                                                    row.clock_in_face_match_percentage ||
+                                                    40
+                                                }}%)
+                                            </Badge>
+                                            <Badge @click="openFaceComparison(row)"
+                                                v-else
+                                                class="cursor-pointer border-emerald-300 bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-800 hover:bg-emerald-200 dark:bg-emerald-950 dark:text-emerald-300"
+                                            >
+                                                ✅ Cocok ({{
+                                                    row.clock_in_face_match_percentage ||
+                                                    88
+                                                }}%)
+                                            </Badge>
+                                        </div>
+                                    </td>
+                                    <td class="px-5 py-3.5 whitespace-nowrap text-center">
+                                        <Badge
+                                            :class="
+                                                getStatusBadge(row.status).class
+                                            "
+                                            class="px-2.5 py-0.5 text-xs font-bold"
+                                        >
+                                            {{
+                                                getStatusBadge(row.status).label
+                                            }}
+                                        </Badge>
+                                    </td>
+                                    <td class="px-5 py-3.5 whitespace-nowrap text-right">
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger as-child>
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    class="h-8 gap-1.5 rounded-xl border-gray-200 px-3 text-xs font-bold text-gray-700 shadow-sm transition-all hover:border-rose-400 hover:bg-rose-50 hover:text-rose-700 dark:border-zinc-800 dark:text-gray-200 dark:hover:bg-zinc-800"
+                                                >
+                                                    <span>Aksi</span>
+                                                    <ChevronDown class="size-3.5" />
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end" class="w-48 rounded-2xl p-1.5 shadow-xl">
+                                                <DropdownMenuItem
+                                                    class="cursor-pointer gap-2 rounded-xl text-xs font-bold text-gray-800 transition-colors hover:bg-rose-50 hover:text-rose-600 dark:text-gray-200 dark:hover:bg-rose-950/40 dark:hover:text-rose-300"
+                                                    @click="openAttendanceDetail(row)"
+                                                >
+                                                    <Eye class="size-4 text-rose-500" />
+                                                    <span>Detail Absensi</span>
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem
+                                                    class="cursor-pointer gap-2 rounded-xl text-xs font-medium text-gray-700 transition-colors hover:bg-emerald-50 hover:text-emerald-700 dark:text-gray-200 dark:hover:bg-emerald-950/40"
+                                                    @click="openFaceComparison(row)"
+                                                >
+                                                    <ScanFace class="size-4 text-emerald-500" />
+                                                    <span>Bandingkan Wajah</span>
+                                                </DropdownMenuItem>
+                                                <DropdownMenuSeparator v-if="row.clock_in_photo_url || row.clock_out_photo_url" />
+                                                <DropdownMenuItem
+                                                    v-if="row.clock_in_photo_url"
+                                                    class="cursor-pointer gap-2 rounded-xl text-xs font-medium text-gray-600 hover:text-gray-900 dark:text-gray-300"
+                                                    @click="openPhotoPreview(row.clock_in_photo_full_url || row.clock_in_photo_url, `Selfie In: ${row.employee?.full_name}`)"
+                                                >
+                                                    <Camera class="size-4 text-gray-400" />
+                                                    <span>Lihat Foto In</span>
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem
+                                                    v-if="row.clock_out_photo_url"
+                                                    class="cursor-pointer gap-2 rounded-xl text-xs font-medium text-gray-600 hover:text-gray-900 dark:text-gray-300"
+                                                    @click="openPhotoPreview(row.clock_out_photo_full_url || row.clock_out_photo_url, `Selfie Out: ${row.employee?.full_name}`)"
+                                                >
+                                                    <Camera class="size-4 text-gray-400" />
+                                                    <span>Lihat Foto Out</span>
+                                                </DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                    </td>
+                                </tr>
+                                <tr
+                                    v-if="
+                                        adminMonitoring.attendances.data
+                                            .length === 0
+                                    "
+                                >
+                                    <td
+                                        colspan="8"
+                                        class="px-5 py-10 text-center text-sm text-gray-400"
+                                    >
+                                        Belum ada data kehadiran pada filter
+                                        ini.
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Pagination Bar -->
+                    <div
+                        v-if="adminMonitoring.attendances.last_page > 1"
+                        class="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 p-4 text-xs dark:border-zinc-800"
+                    >
+                        <span class="text-gray-500">
+                            Menampilkan halaman {{ adminMonitoring.attendances.current_page }} dari {{ adminMonitoring.attendances.last_page }} (Total {{ adminMonitoring.attendances.total }} data)
+                        </span>
+                        <div class="flex items-center gap-1">
+                            <Link
+                                v-for="(link, idx) in adminMonitoring.attendances.links"
+                                :key="idx"
+                                :href="link.url || '#'"
+                                :class="[
+                                    'rounded-lg px-2.5 py-1 text-xs font-medium transition-colors',
+                                    link.active
+                                        ? 'bg-rose-600 font-bold text-white shadow'
+                                        : link.url
+                                          ? 'border border-gray-200 bg-white text-gray-700 hover:bg-rose-50 hover:text-rose-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-gray-300'
+                                          : 'cursor-not-allowed text-gray-300 dark:text-zinc-700',
+                                ]"
+                                v-html="link.label"
+                                :preserve-scroll="true"
+                            />
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+
+            <!-- 3. FACE ID REGISTRATION STATUS BANNER -->
             <div v-if="employee">
                 <!-- Case A: Face ID Belum Terdaftar (Warning Alert with Pulsing CTA) -->
                 <div
@@ -1197,281 +1566,6 @@ const resetEmployeeFace = (employeeId?: number) => {
                     </div>
                 </CardContent>
             </Card>
-
-            <!-- 6. KHUSUS ADMIN PUSAT: MONITORING REALTIME SELURUH CABANG -->
-            <Card
-                v-if="isAdminPusat && adminMonitoring"
-                class="mt-6 border-gray-200 shadow-md dark:border-zinc-800"
-            >
-                <CardHeader
-                    class="border-b border-gray-100 pb-4 dark:border-zinc-800"
-                >
-                    <div
-                        class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
-                    >
-                        <div>
-                            <div class="flex items-center gap-2">
-                                <Shield class="size-5 text-rose-600" />
-                                <CardTitle class="text-base font-bold"
-                                    >Monitoring Absensi Jaringan
-                                    Cabang</CardTitle
-                                >
-                            </div>
-                            <CardDescription class="mt-0.5 text-xs">
-                                Rekap real-time kehadiran seluruh kru gerai hari
-                                ini ({{ todayDateFormatted }})
-                            </CardDescription>
-                        </div>
-
-                        <!-- KPI Badge Counter -->
-                        <div class="flex flex-wrap items-center gap-2 text-xs">
-                            <span
-                                class="rounded-xl bg-gray-100 px-3 py-1 font-bold text-gray-800 dark:bg-zinc-800 dark:text-gray-200"
-                            >
-                                Total:
-                                {{ adminMonitoring.stats.total_today }} Hadir
-                            </span>
-                            <span
-                                class="rounded-xl bg-emerald-100 px-3 py-1 font-bold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
-                            >
-                                {{ adminMonitoring.stats.on_time }} Tepat Waktu
-                            </span>
-                            <span
-                                class="rounded-xl bg-amber-100 px-3 py-1 font-bold text-amber-800 dark:bg-amber-950 dark:text-amber-300"
-                            >
-                                {{ adminMonitoring.stats.late }} Terlambat
-                            </span>
-                        </div>
-                    </div>
-
-                    <!-- Search & Filter Bar -->
-                    <div class="grid grid-cols-1 gap-2.5 pt-3 sm:grid-cols-4">
-                        <div class="relative sm:col-span-2">
-                            <Search
-                                class="absolute top-2.5 left-3 size-4 text-gray-400"
-                            />
-                            <Input
-                                v-model="search"
-                                placeholder="Cari nama kru atau NIK..."
-                                class="h-9 rounded-xl pl-9 text-xs"
-                                @keyup.enter="handleFilter"
-                            />
-                        </div>
-                        <div>
-                            <select
-                                v-model="filterBranch"
-                                class="h-9 w-full rounded-xl border border-input bg-transparent px-3 text-xs"
-                                @change="handleFilter"
-                            >
-                                <option value="">Semua Cabang Gerai</option>
-                                <option
-                                    v-for="b in adminMonitoring.branches"
-                                    :key="b.id"
-                                    :value="b.id"
-                                >
-                                    {{ b.branch_name }}
-                                </option>
-                            </select>
-                        </div>
-                        <div class="flex gap-2">
-                            <select
-                                v-model="filterStatus"
-                                class="h-9 w-full rounded-xl border border-input bg-transparent px-3 text-xs"
-                                @change="handleFilter"
-                            >
-                                <option value="">Semua Status</option>
-                                <option value="hadir_tepat_waktu">
-                                    Tepat Waktu
-                                </option>
-                                <option value="terlambat">Terlambat</option>
-                            </select>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                class="h-9 rounded-xl px-3 text-xs"
-                                @click="resetFilter"
-                            >
-                                Reset
-                            </Button>
-                        </div>
-                    </div>
-                </CardHeader>
-                <CardContent class="p-0">
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left text-xs">
-                            <thead
-                                class="border-b border-gray-100 bg-gray-50/80 font-bold tracking-wider text-gray-500 uppercase dark:border-zinc-800 dark:bg-zinc-900"
-                            >
-                                <tr>
-                                    <th class="px-4 py-3">Kru & Cabang</th>
-                                    <th class="px-4 py-3">Shift</th>
-                                    <th class="px-4 py-3">Clock In</th>
-                                    <th class="px-4 py-3">Clock Out</th>
-                                    <th class="px-4 py-3">Jarak GPS</th>
-                                    <th class="px-4 py-3">Verifikasi Wajah</th>
-                                    <th class="px-4 py-3">Status</th>
-                                    <th class="px-4 py-3 text-right">Selfie</th>
-                                </tr>
-                            </thead>
-                            <tbody
-                                class="divide-y divide-gray-100 dark:divide-zinc-800"
-                            >
-                                <tr
-                                    v-for="row in adminMonitoring.attendances
-                                        .data"
-                                    :key="row.id"
-                                    class="hover:bg-gray-50/60 dark:hover:bg-zinc-900/50"
-                                >
-                                    <td class="px-4 py-3 font-medium">
-                                        <div
-                                            class="font-bold text-gray-900 dark:text-white"
-                                        >
-                                            {{ row.employee?.full_name || '-' }}
-                                        </div>
-                                        <div class="text-[11px] text-gray-500">
-                                            {{
-                                                row.employee?.current_branch
-                                                    ?.branch_name ||
-                                                row.branch?.branch_name
-                                            }}
-                                        </div>
-                                    </td>
-                                    <td
-                                        class="px-4 py-3 text-gray-600 dark:text-gray-400"
-                                    >
-                                        {{
-                                            row.shift?.shift_name ||
-                                            'Shift Standar'
-                                        }}
-                                    </td>
-                                    <td
-                                        class="px-4 py-3 font-mono font-bold text-gray-900 dark:text-white"
-                                    >
-                                        {{
-                                            row.clock_in_time
-                                                ? row.clock_in_time.slice(0, 5)
-                                                : '-'
-                                        }}
-                                    </td>
-                                    <td
-                                        class="px-4 py-3 font-mono font-bold text-gray-900 dark:text-white"
-                                    >
-                                        {{
-                                            row.clock_out_time
-                                                ? row.clock_out_time.slice(0, 5)
-                                                : '-'
-                                        }}
-                                    </td>
-                                    <td
-                                        class="px-4 py-3 text-gray-600 dark:text-gray-400"
-                                    >
-                                        {{
-                                            row.clock_in_distance_meters
-                                                ? `${row.clock_in_distance_meters}m`
-                                                : '-'
-                                        }}
-                                    </td>
-                                    <td class="px-4 py-3">
-                                        <div class="flex items-center gap-1.5">
-                                            <Badge
-                                                v-if="row.is_face_mismatch"
-                                                class="animate-pulse border-rose-300 bg-rose-100 text-[10px] font-bold text-rose-800 dark:bg-rose-950 dark:text-rose-300"
-                                            >
-                                                ⚠️ Beda ({{
-                                                    row.clock_in_face_match_percentage ||
-                                                    40
-                                                }}%)
-                                            </Badge>
-                                            <Badge
-                                                v-else
-                                                class="border-emerald-300 bg-emerald-100 text-[10px] font-bold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
-                                            >
-                                                ✅ Cocok ({{
-                                                    row.clock_in_face_match_percentage ||
-                                                    88
-                                                }}%)
-                                            </Badge>
-                                            <button
-                                                type="button"
-                                                class="shrink-0 text-[10px] font-bold text-rose-600 underline hover:text-rose-700"
-                                                @click="openFaceComparison(row)"
-                                                title="Bandingkan Foto Face ID vs Selfie"
-                                            >
-                                                Bandingkan
-                                            </button>
-                                        </div>
-                                    </td>
-                                    <td class="px-4 py-3">
-                                        <Badge
-                                            :class="
-                                                getStatusBadge(row.status).class
-                                            "
-                                            class="text-[10px] font-bold"
-                                        >
-                                            {{
-                                                getStatusBadge(row.status).label
-                                            }}
-                                        </Badge>
-                                    </td>
-                                    <td class="px-4 py-3 text-right">
-                                        <div
-                                            class="flex items-center justify-end gap-1.5"
-                                        >
-                                            <Button
-                                                v-if="row.clock_in_photo_url"
-                                                type="button"
-                                                size="sm"
-                                                variant="ghost"
-                                                class="h-7 px-2 text-[11px] hover:text-rose-600"
-                                                @click="
-                                                    openPhotoPreview(
-                                                        row.clock_in_photo_full_url || row.clock_in_photo_url,
-                                                        `Selfie In: ${row.employee?.full_name}`,
-                                                    )
-                                                "
-                                            >
-                                                <Camera class="mr-1 size-3.5" />
-                                                In
-                                            </Button>
-                                            <Button
-                                                v-if="row.clock_out_photo_url"
-                                                type="button"
-                                                size="sm"
-                                                variant="ghost"
-                                                class="h-7 px-2 text-[11px] hover:text-rose-600"
-                                                @click="
-                                                    openPhotoPreview(
-                                                        row.clock_out_photo_full_url || row.clock_out_photo_url,
-                                                        `Selfie Out: ${row.employee?.full_name}`,
-                                                    )
-                                                "
-                                            >
-                                                <Camera class="mr-1 size-3.5" />
-                                                Out
-                                            </Button>
-                                        </div>
-                                    </td>
-                                </tr>
-                                <tr
-                                    v-if="
-                                        adminMonitoring.attendances.data
-                                            .length === 0
-                                    "
-                                >
-                                    <td
-                                        colspan="7"
-                                        class="px-4 py-8 text-center text-gray-400"
-                                    >
-                                        Belum ada data kehadiran pada filter
-                                        ini.
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </CardContent>
-            </Card>
         </div>
 
         <!-- MODAL 1: Face Registration Modal -->
@@ -1488,6 +1582,8 @@ const resetEmployeeFace = (employeeId?: number) => {
             :mode="attendanceModalMode"
             :branch="branch"
             :shifts="shifts"
+            :employee-face-url="employee?.face_photo_url"
+            :employee-name="employee?.full_name"
             @success="isAttendanceModalOpen = false"
         />
 
@@ -1678,5 +1774,309 @@ const resetEmployeeFace = (employeeId?: number) => {
                 </div>
             </DialogContent>
         </Dialog>
-    </AppLayout>
+
+        <!-- MODAL 5: Comprehensive Attendance Detail Modal (Clock In & Clock Out with Lat/Long) -->
+        <Dialog
+            :open="isDetailModalOpen"
+            @update:open="(val) => !val && (isDetailModalOpen = false)"
+        >
+            <DialogContent
+                class="max-h-[92vh] w-full overflow-y-auto rounded-3xl border-rose-200/60 p-0 sm:max-w-2xl dark:border-zinc-800"
+            >
+                <!-- Header with Coral Gradient -->
+                <div
+                    class="relative bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 p-5 text-white sm:p-6"
+                >
+                    <div class="flex items-start justify-between gap-3">
+                        <div class="flex items-center gap-3">
+                            <div
+                                class="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-md"
+                            >
+                                <Clock class="size-6 text-white" />
+                            </div>
+                            <div>
+                                <DialogTitle class="text-base font-black text-white sm:text-lg">
+                                    Detail Presensi Kehadiran Kru
+                                </DialogTitle>
+                                <DialogDescription class="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-rose-100">
+                                    <span class="font-bold text-white">{{ selectedDetailRecord?.employee?.full_name || 'Kru' }}</span>
+                                    <span>•</span>
+                                    <span>NIK: {{ selectedDetailRecord?.employee?.nik || '-' }}</span>
+                                    <span>•</span>
+                                    <span class="inline-flex items-center gap-1">
+                                        <Building2 class="size-3" />
+                                        {{ selectedDetailRecord?.employee?.current_branch?.branch_name || selectedDetailRecord?.branch?.branch_name || 'Gerai' }}
+                                    </span>
+                                </DialogDescription>
+                            </div>
+                        </div>
+
+                        <Badge
+                            v-if="selectedDetailRecord"
+                            :class="getStatusBadge(selectedDetailRecord.status).class"
+                            class="shrink-0 text-xs font-bold"
+                        >
+                            {{ getStatusBadge(selectedDetailRecord.status).label }}
+                        </Badge>
+                    </div>
+
+                    <!-- Meta strip: Date & Shift -->
+                    <div class="mt-4 flex flex-wrap items-center gap-2 text-xs text-rose-100/90 border-t border-white/15 pt-3">
+                        <span class="inline-flex items-center gap-1">
+                            <Calendar class="size-3.5" />
+                            {{ selectedDetailRecord?.date }}
+                        </span>
+                        <span>•</span>
+                        <span class="inline-flex items-center gap-1">
+                            <Clock class="size-3.5" />
+                            {{ selectedDetailRecord?.shift?.shift_name || 'Shift Standar' }}
+                            <template v-if="selectedDetailRecord?.shift?.start_time">
+                                ({{ selectedDetailRecord.shift.start_time.slice(0, 5) }} - {{ selectedDetailRecord.shift.end_time.slice(0, 5) }} WIB)
+                            </template>
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Modal Body: Side-by-side Clock In & Clock Out Cards -->
+                <div class="space-y-4 p-5 sm:p-6">
+                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <!-- CARD 1: CLOCK IN -->
+                        <div class="flex flex-col justify-between rounded-2xl border border-emerald-200 bg-emerald-50/40 p-4 dark:border-emerald-900/60 dark:bg-emerald-950/20">
+                            <div class="space-y-3.5">
+                                <div class="flex items-center justify-between border-b border-emerald-200/70 pb-2.5 dark:border-emerald-800/40">
+                                    <span class="inline-flex items-center gap-1.5 text-xs font-black text-emerald-800 uppercase dark:text-emerald-300">
+                                        <CheckCircle2 class="size-4 text-emerald-600" />
+                                        Clock In (Masuk)
+                                    </span>
+                                    <span class="font-mono text-sm font-black text-emerald-900 dark:text-emerald-200">
+                                        {{ selectedDetailRecord?.clock_in_time ? selectedDetailRecord.clock_in_time.slice(0, 5) + ' WIB' : '-' }}
+                                    </span>
+                                </div>
+
+                                <!-- Selfie In Thumbnail -->
+                                <div class="flex items-center gap-3">
+                                    <div
+                                        class="group relative size-20 shrink-0 cursor-pointer overflow-hidden rounded-2xl border-2 border-emerald-300 bg-zinc-950 shadow-sm"
+                                        @click="openPhotoPreview(selectedDetailRecord?.clock_in_photo_full_url || selectedDetailRecord?.clock_in_photo_url, `Selfie Clock In: ${selectedDetailRecord?.employee?.full_name}`)"
+                                    >
+                                        <img
+                                            v-if="selectedDetailRecord?.clock_in_photo_url"
+                                            :src="selectedDetailRecord.clock_in_photo_full_url || `/storage/${selectedDetailRecord.clock_in_photo_url}`"
+                                            alt="Selfie In"
+                                            class="size-full object-cover transition-transform group-hover:scale-105"
+                                        />
+                                        <div v-else class="flex size-full items-center justify-center text-gray-500">
+                                            <Camera class="size-6" />
+                                        </div>
+                                        <div class="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 transition-opacity group-hover:opacity-100">
+                                            <Eye class="size-5 text-white" />
+                                        </div>
+                                    </div>
+                                    <div class="space-y-1 text-xs">
+                                        <span class="block font-medium text-gray-500 dark:text-gray-400">Verifikasi Face ID:</span>
+                                        <Badge
+                                            v-if="selectedDetailRecord?.is_face_mismatch"
+                                            class="border-rose-300 bg-rose-100 text-[11px] font-bold text-rose-800 dark:bg-rose-950 dark:text-rose-300"
+                                        >
+                                            ⚠️ Kemiripan {{ selectedDetailRecord?.clock_in_face_match_percentage || 0 }}%
+                                        </Badge>
+                                        <Badge
+                                            v-else
+                                            class="border-emerald-300 bg-emerald-100 text-[11px] font-bold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                                        >
+                                            ✅ Terverifikasi ({{ selectedDetailRecord?.clock_in_face_match_percentage || 100 }}%)
+                                        </Badge>
+                                    </div>
+                                </div>
+
+                                <!-- GPS Coordinates Highlight Box (User requested) -->
+                                <div class="rounded-xl border border-emerald-300/60 bg-white/80 p-3 text-xs space-y-2 dark:border-emerald-800/40 dark:bg-zinc-900">
+                                    <div class="flex items-center justify-between text-gray-500">
+                                        <span class="font-bold flex items-center gap-1 text-emerald-900 dark:text-emerald-300">
+                                            <MapPin class="size-3.5 text-emerald-600" />
+                                            Titik GPS Clock In
+                                        </span>
+                                        <span class="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
+                                            {{ selectedDetailRecord?.clock_in_distance_meters != null ? `${selectedDetailRecord.clock_in_distance_meters}m dari gerai` : '-' }}
+                                        </span>
+                                    </div>
+
+                                    <div class="grid grid-cols-2 gap-2 font-mono text-[11px] bg-emerald-50/50 p-2 rounded-lg dark:bg-zinc-800">
+                                        <div>
+                                            <span class="block text-[10px] text-gray-400 font-sans uppercase">Latitude</span>
+                                            <span class="font-bold text-gray-800 dark:text-gray-200 select-all">{{ selectedDetailRecord?.clock_in_lat ?? '-' }}</span>
+                                        </div>
+                                        <div>
+                                            <span class="block text-[10px] text-gray-400 font-sans uppercase">Longitude</span>
+                                            <span class="font-bold text-gray-800 dark:text-gray-200 select-all">{{ selectedDetailRecord?.clock_in_long ?? '-' }}</span>
+                                        </div>
+                                    </div>
+
+                                    <!-- Action buttons: Copy & Open Maps -->
+                                    <div class="flex items-center gap-2 pt-1">
+                                        <a
+                                            v-if="selectedDetailRecord?.clock_in_lat && selectedDetailRecord?.clock_in_long"
+                                            :href="`https://www.google.com/maps?q=${selectedDetailRecord.clock_in_lat},${selectedDetailRecord.clock_in_long}`"
+                                            target="_blank"
+                                            class="inline-flex flex-1 items-center justify-center gap-1 rounded-lg bg-emerald-600 px-2 py-1 text-[11px] font-bold text-white transition-colors hover:bg-emerald-700 shadow-sm"
+                                        >
+                                            <Navigation class="size-3" />
+                                            <span>Buka di Google Maps</span>
+                                            <ExternalLink class="size-2.5 ml-0.5" />
+                                        </a>
+                                        <button
+                                            v-if="selectedDetailRecord?.clock_in_lat && selectedDetailRecord?.clock_in_long"
+                                            type="button"
+                                            @click="copyCoordinates(selectedDetailRecord.clock_in_lat, selectedDetailRecord.clock_in_long, 'in')"
+                                            class="inline-flex items-center gap-1 rounded-lg border border-gray-300 bg-white px-2 py-1 text-[11px] font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-gray-300"
+                                            title="Salin Koordinat"
+                                        >
+                                            <Check v-if="copiedCoordType === 'in'" class="size-3 text-emerald-600" />
+                                            <Copy v-else class="size-3" />
+                                            <span>{{ copiedCoordType === 'in' ? 'Tersalin' : 'Salin' }}</span>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Notes if any -->
+                                <div v-if="selectedDetailRecord?.notes" class="text-[11px] text-gray-600 dark:text-gray-400">
+                                    <span class="font-bold">Catatan:</span> {{ selectedDetailRecord.notes }}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- CARD 2: CLOCK OUT -->
+                        <div
+                            class="flex flex-col justify-between rounded-2xl border p-4 transition-all"
+                            :class="[
+                                selectedDetailRecord?.clock_out_time
+                                    ? 'border-indigo-200 bg-indigo-50/40 dark:border-indigo-900/60 dark:bg-indigo-950/20'
+                                    : 'border-dashed border-gray-300 bg-gray-50/60 dark:border-zinc-800 dark:bg-zinc-900/30'
+                            ]"
+                        >
+                            <template v-if="selectedDetailRecord?.clock_out_time">
+                                <div class="space-y-3.5">
+                                    <div class="flex items-center justify-between border-b border-indigo-200/70 pb-2.5 dark:border-indigo-800/40">
+                                        <span class="inline-flex items-center gap-1.5 text-xs font-black text-indigo-800 uppercase dark:text-indigo-300">
+                                            <CheckCircle class="size-4 text-indigo-600" />
+                                            Clock Out (Keluar)
+                                        </span>
+                                        <span class="font-mono text-sm font-black text-indigo-900 dark:text-indigo-200">
+                                            {{ selectedDetailRecord.clock_out_time.slice(0, 5) }} WIB
+                                        </span>
+                                    </div>
+
+                                    <!-- Selfie Out Thumbnail -->
+                                    <div class="flex items-center gap-3">
+                                        <div
+                                            class="group relative size-20 shrink-0 cursor-pointer overflow-hidden rounded-2xl border-2 border-indigo-300 bg-zinc-950 shadow-sm"
+                                            @click="openPhotoPreview(selectedDetailRecord.clock_out_photo_full_url || selectedDetailRecord.clock_out_photo_url, `Selfie Clock Out: ${selectedDetailRecord.employee?.full_name}`)"
+                                        >
+                                            <img
+                                                v-if="selectedDetailRecord.clock_out_photo_url"
+                                                :src="selectedDetailRecord.clock_out_photo_full_url || `/storage/${selectedDetailRecord.clock_out_photo_url}`"
+                                                alt="Selfie Out"
+                                                class="size-full object-cover transition-transform group-hover:scale-105"
+                                            />
+                                            <div v-else class="flex size-full items-center justify-center text-gray-500">
+                                                <Camera class="size-6" />
+                                            </div>
+                                            <div class="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 transition-opacity group-hover:opacity-100">
+                                                <Eye class="size-5 text-white" />
+                                            </div>
+                                        </div>
+                                        <div class="space-y-1 text-xs">
+                                            <span class="block font-medium text-gray-500 dark:text-gray-400">Verifikasi Face ID:</span>
+                                            <Badge
+                                                class="border-indigo-300 bg-indigo-100 text-[11px] font-bold text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300"
+                                            >
+                                                ✅ Terverifikasi ({{ selectedDetailRecord.clock_out_face_match_percentage || 100 }}%)
+                                            </Badge>
+                                        </div>
+                                    </div>
+
+                                    <!-- GPS Coordinates Highlight Box (User requested) -->
+                                    <div class="rounded-xl border border-indigo-300/60 bg-white/80 p-3 text-xs space-y-2 dark:border-indigo-800/40 dark:bg-zinc-900">
+                                        <div class="flex items-center justify-between text-gray-500">
+                                            <span class="font-bold flex items-center gap-1 text-indigo-900 dark:text-indigo-300">
+                                                <MapPin class="size-3.5 text-indigo-600" />
+                                                Titik GPS Clock Out
+                                            </span>
+                                            <span class="text-[11px] font-semibold text-indigo-700 dark:text-indigo-400">
+                                                {{ selectedDetailRecord.clock_out_distance_meters != null ? `${selectedDetailRecord.clock_out_distance_meters}m dari gerai` : '-' }}
+                                            </span>
+                                        </div>
+
+                                        <div class="grid grid-cols-2 gap-2 font-mono text-[11px] bg-indigo-50/50 p-2 rounded-lg dark:bg-zinc-800">
+                                            <div>
+                                                <span class="block text-[10px] text-gray-400 font-sans uppercase">Latitude</span>
+                                                <span class="font-bold text-gray-800 dark:text-gray-200 select-all">{{ selectedDetailRecord.clock_out_lat ?? '-' }}</span>
+                                            </div>
+                                            <div>
+                                                <span class="block text-[10px] text-gray-400 font-sans uppercase">Longitude</span>
+                                                <span class="font-bold text-gray-800 dark:text-gray-200 select-all">{{ selectedDetailRecord.clock_out_long ?? '-' }}</span>
+                                            </div>
+                                        </div>
+
+                                        <!-- Action buttons: Copy & Open Maps -->
+                                        <div class="flex items-center gap-2 pt-1">
+                                            <a
+                                                v-if="selectedDetailRecord.clock_out_lat && selectedDetailRecord.clock_out_long"
+                                                :href="`https://www.google.com/maps?q=${selectedDetailRecord.clock_out_lat},${selectedDetailRecord.clock_out_long}`"
+                                                target="_blank"
+                                                class="inline-flex flex-1 items-center justify-center gap-1 rounded-lg bg-indigo-600 px-2 py-1 text-[11px] font-bold text-white transition-colors hover:bg-indigo-700 shadow-sm"
+                                            >
+                                                <Navigation class="size-3" />
+                                                <span>Buka di Google Maps</span>
+                                                <ExternalLink class="size-2.5 ml-0.5" />
+                                            </a>
+                                            <button
+                                                v-if="selectedDetailRecord.clock_out_lat && selectedDetailRecord.clock_out_long"
+                                                type="button"
+                                                @click="copyCoordinates(selectedDetailRecord.clock_out_lat, selectedDetailRecord.clock_out_long, 'out')"
+                                                class="inline-flex items-center gap-1 rounded-lg border border-gray-300 bg-white px-2 py-1 text-[11px] font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-gray-300"
+                                                title="Salin Koordinat"
+                                            >
+                                                <Check v-if="copiedCoordType === 'out'" class="size-3 text-indigo-600" />
+                                                <Copy v-else class="size-3" />
+                                                <span>{{ copiedCoordType === 'out' ? 'Tersalin' : 'Salin' }}</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+
+                            <template v-else>
+                                <div class="flex h-full min-h-[220px] flex-col items-center justify-center p-6 text-center">
+                                    <div class="mb-2 flex size-12 items-center justify-center rounded-2xl bg-gray-100 text-gray-400 dark:bg-zinc-800">
+                                        <Clock class="size-6" />
+                                    </div>
+                                    <div class="font-bold text-xs text-gray-700 dark:text-gray-300">
+                                        Belum Clock Out
+                                    </div>
+                                    <p class="mt-1 text-[11px] leading-relaxed text-gray-400">
+                                        Kru sedang bertugas dan belum melakukan Clock Out untuk shift hari ini.
+                                    </p>
+                                    <Badge class="mt-3 border-amber-300 bg-amber-50 text-[10px] font-bold text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+                                        Shift Sedang Berlangsung
+                                    </Badge>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Footer Close Button -->
+                    <div class="flex justify-end pt-2">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            class="rounded-xl px-5 text-xs font-bold"
+                            @click="isDetailModalOpen = false"
+                        >
+                            Tutup
+                        </Button>
+                    </div>
+                </div>
+            </DialogContent>
+        </Dialog>
 </template>

@@ -28,6 +28,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
+import { useFaceDetector } from '@/composables/useFaceDetector';
 import { useGeolocation } from '@/composables/useGeolocation';
 
 const props = defineProps<{
@@ -48,6 +49,8 @@ const props = defineProps<{
         end_time: string;
         late_tolerance_minutes: number;
     }>;
+    employeeFaceUrl?: string | null;
+    employeeName?: string;
 }>();
 
 const emit = defineEmits<{
@@ -72,7 +75,19 @@ const isInsideRadius = computed(() => {
     return calculatedDistance.value <= maxRadius;
 });
 
-// Camera state
+// Camera & Face Detection state
+const {
+    isFaceDetected,
+    isFaceMatched,
+    matchSimilarity,
+    detectionConfidence,
+    detectionMessage,
+    setReferenceFace,
+    startLiveDetection,
+    stopLiveDetection,
+    validateBase64Image,
+} = useFaceDetector();
+
 const videoRef = ref<HTMLVideoElement | null>(null);
 const mediaStream = ref<MediaStream | null>(null);
 const isCameraActive = ref(false);
@@ -136,6 +151,7 @@ const startCamera = async () => {
             videoRef.value.srcObject = stream;
             videoRef.value.play();
             isCameraActive.value = true;
+            startLiveDetection(videoRef.value);
         }
     } catch (err: any) {
         console.error('Camera access error:', err);
@@ -152,6 +168,7 @@ const startCamera = async () => {
 
 // Stop camera stream
 const stopCamera = () => {
+    stopLiveDetection();
     if (mediaStream.value) {
         mediaStream.value.getTracks().forEach((track) => track.stop());
         mediaStream.value = null;
@@ -168,9 +185,16 @@ const toggleCameraFacing = async () => {
     await startCamera();
 };
 
-// Snap selfie
-const capturePhoto = () => {
+// Snap selfie dengan proteksi anti-objek / wajib wajah manusia
+const capturePhoto = async () => {
     if (!videoRef.value) return;
+
+    if (!isFaceDetected.value) {
+        alert(
+            'Wajah belum terdeteksi! Pastikan kamera mengarah tepat ke wajah Anda di dalam lingkaran oval (jangan halangi kamera dengan HP atau objek lain).',
+        );
+        return;
+    }
 
     if (navigator.vibrate) {
         navigator.vibrate(50);
@@ -190,8 +214,18 @@ const capturePhoto = () => {
     }
 
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    capturedPhoto.value = canvas.toDataURL('image/jpeg', 0.88);
+    const photoData = canvas.toDataURL('image/jpeg', 0.88);
 
+    // Validasi keberadaan wajah pada snapshot kanvas
+    const validation = await validateBase64Image(photoData);
+    if (!validation.hasFace) {
+        alert(
+            'Wajah tidak terdeteksi pada hasil foto! Posisikan wajah Anda tepat di dalam lingkaran panduan oval.',
+        );
+        return;
+    }
+
+    capturedPhoto.value = photoData;
     stopCamera();
 };
 
@@ -200,14 +234,22 @@ const retakePhoto = () => {
     startCamera();
 };
 
-// File upload fallback
+// File upload fallback dengan validasi wajah
 const handleFileUpload = (event: Event) => {
     const input = event.target as HTMLInputElement;
     if (input.files && input.files[0]) {
         const file = input.files[0];
         const reader = new FileReader();
-        reader.onload = (e) => {
-            capturedPhoto.value = e.target?.result as string;
+        reader.onload = async (e) => {
+            const dataUrl = e.target?.result as string;
+            const validation = await validateBase64Image(dataUrl);
+            if (!validation.hasFace) {
+                alert(
+                    'Foto yang diunggah bukan wajah manusia! Pastikan Anda mengunggah foto wajah kru yang bersangkutan, bukan barang atau objek lain.',
+                );
+                return;
+            }
+            capturedPhoto.value = dataUrl;
             stopCamera();
         };
         reader.readAsDataURL(file);
@@ -303,6 +345,9 @@ watch(
             updateCurrentTime();
             capturedPhoto.value = null;
             notes.value = '';
+            if (props.employeeFaceUrl) {
+                setReferenceFace(props.employeeFaceUrl);
+            }
             if (
                 props.shifts &&
                 props.shifts.length > 0 &&
@@ -565,13 +610,58 @@ onBeforeUnmount(() => {
                                 muted
                             ></video>
 
-                            <!-- Oval Guide -->
+                            <!-- Oval Guide with Dynamic Biometric Indicator -->
                             <div
                                 class="pointer-events-none absolute inset-0 flex items-center justify-center"
                             >
                                 <div
-                                    class="h-[80%] w-[68%] rounded-[50%] border-2 border-dashed border-rose-400/90 shadow-[0_0_20px_rgba(244,63,94,0.35)]"
-                                ></div>
+                                    class="relative h-[80%] w-[68%] rounded-[50%] border-2 border-dashed transition-all duration-300"
+                                    :class="[
+                                        isFaceDetected
+                                            ? 'border-emerald-400 shadow-[0_0_25px_rgba(52,211,153,0.6)] ring-2 ring-emerald-400/50'
+                                            : 'border-rose-400/90 shadow-[0_0_20px_rgba(244,63,94,0.35)]',
+                                    ]"
+                                >
+                                    <!-- Scanning beam micro-animation -->
+                                    <div
+                                        class="absolute inset-x-4 top-1/2 -translate-y-1/2 h-0.5 animate-pulse"
+                                        :class="
+                                            isFaceDetected
+                                                ? 'bg-gradient-to-r from-transparent via-emerald-400 to-transparent'
+                                                : 'bg-gradient-to-r from-transparent via-rose-400 to-transparent'
+                                        "
+                                    ></div>
+                                </div>
+                            </div>
+
+                            <!-- Real-time Face Status Pill Overlay -->
+                            <div
+                                class="pointer-events-none absolute inset-x-0 top-2.5 flex justify-center px-3"
+                            >
+                                <span
+                                    class="inline-flex max-w-[92%] items-center gap-1.5 truncate rounded-full px-3 py-1 text-[11px] font-semibold backdrop-blur-md transition-all text-center"
+                                    :class="[
+                                        isFaceDetected
+                                            ? 'border border-emerald-500/50 bg-emerald-950/85 text-emerald-200 shadow-sm'
+                                            : 'border border-rose-500/30 bg-black/75 text-rose-200',
+                                    ]"
+                                >
+                                    <span
+                                        class="size-2 shrink-0 rounded-full"
+                                        :class="[
+                                            isFaceDetected
+                                                ? 'animate-ping bg-emerald-400'
+                                                : 'animate-pulse bg-rose-500',
+                                        ]"
+                                    ></span>
+                                    <span class="truncate">
+                                        {{
+                                            isFaceDetected
+                                                ? 'Wajah Terdeteksi & Fokus'
+                                                : 'Posisikan Wajah di Oval'
+                                        }}
+                                    </span>
+                                </span>
                             </div>
 
                             <button
@@ -618,10 +708,10 @@ onBeforeUnmount(() => {
                                 class="absolute inset-x-0 top-2 flex justify-center"
                             >
                                 <Badge
-                                    class="bg-emerald-600 text-[11px] font-semibold text-white"
+                                    class="bg-emerald-600 text-[11px] font-semibold text-white shadow"
                                 >
                                     <CheckCircle2 class="mr-1 size-3" />
-                                    Selfie Siap
+                                    Selfie Siap Diverifikasi
                                 </Badge>
                             </div>
                         </template>
@@ -646,19 +736,38 @@ onBeforeUnmount(() => {
                             <button
                                 type="button"
                                 @click="capturePhoto"
-                                class="group flex size-14 items-center justify-center rounded-full bg-gradient-to-tr from-rose-600 to-red-500 p-0.5 shadow-md shadow-rose-600/30 transition-transform active:scale-95"
+                                class="group flex size-14 items-center justify-center rounded-full p-0.5 shadow-md transition-all active:scale-95"
+                                :class="[
+                                    isFaceDetected
+                                        ? 'bg-gradient-to-tr from-emerald-600 to-teal-500 shadow-emerald-600/40 ring-4 ring-emerald-500/20'
+                                        : 'bg-gradient-to-tr from-rose-600 to-red-500 shadow-rose-600/30 opacity-70',
+                                ]"
                                 :disabled="!isCameraActive"
                             >
                                 <div
-                                    class="flex size-full items-center justify-center rounded-full border-2 border-white/80 bg-rose-600 group-hover:bg-rose-500"
+                                    class="flex size-full items-center justify-center rounded-full border-2 border-white/80 transition-colors"
+                                    :class="[
+                                        isFaceDetected
+                                            ? 'bg-emerald-600 group-hover:bg-emerald-500'
+                                            : 'bg-rose-600 group-hover:bg-rose-500',
+                                    ]"
                                 >
                                     <Camera class="size-5 text-white" />
                                 </div>
                             </button>
                             <span
-                                class="mt-1 text-[11px] font-semibold text-gray-500"
+                                class="mt-1 text-[11px] font-semibold transition-colors"
+                                :class="
+                                    isFaceDetected
+                                        ? 'font-bold text-emerald-700 dark:text-emerald-400'
+                                        : 'text-gray-500'
+                                "
                             >
-                                Ambil Foto Selfie
+                                {{
+                                    isFaceDetected
+                                        ? 'Ambil Foto Selfie'
+                                        : 'Posisikan Wajah di Oval'
+                                }}
                             </span>
                         </div>
                         <div v-else class="flex justify-center">

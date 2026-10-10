@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Storage;
 
 class SetoranTransfer extends Model
@@ -52,6 +53,11 @@ class SetoranTransfer extends Model
         }
 
         return asset('storage/'.$this->proof_receipt_url);
+    }
+
+    public function proofs(): HasMany
+    {
+        return $this->hasMany(SetoranTransferProof::class, 'transfer_id');
     }
 
     public function cashflow(): BelongsTo

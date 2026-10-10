@@ -217,7 +217,7 @@ const toggleBranchStatus = (b: (typeof props.branches.data)[number]) => {
 <template>
     <Head title="Master Cabang & Geofencing GPS - Momoyo Ops" />
 
-    <div class="mx-auto max-w-7xl flex-1 space-y-6 p-4 sm:p-6 lg:p-8">
+    <div class="flex-1 space-y-6 p-4 sm:p-6 lg:p-8">
         <!-- HEADER BANNER -->
         <div
             class="flex flex-col gap-4 rounded-3xl border border-gray-200 bg-white p-6 shadow-sm md:flex-row md:items-center md:justify-between dark:border-zinc-800 dark:bg-zinc-900"

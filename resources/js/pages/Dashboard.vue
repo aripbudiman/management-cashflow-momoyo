@@ -51,6 +51,7 @@ const props = defineProps<{
         total_omset_today: number;
         total_expense_today: number;
         total_net_cash_today: number;
+        pending_cashflows_count?: number;
         pending_transfers_count: number;
         attendances_summary: {
             total_present: number;
@@ -58,6 +59,16 @@ const props = defineProps<{
             late: number;
         };
     };
+    pendingSetoran?: Array<{
+        id: number;
+        branch_id: number;
+        branch_name: string | null;
+        branch_code: string | null;
+        report_date: string;
+        total_setor: number;
+        total_transfer: number;
+        proofs: string[];
+    }>;
     userBranch?: {
         id: number;
         branch_code: string;
@@ -188,6 +199,13 @@ const formatRupiah = (val: number) => {
     }).format(val || 0);
 };
 
+// Laba bersih = total pemasukan (semua wallet) - total pengeluaran
+const labaBersih = computed(
+    () =>
+        Number(props.metrics.total_omset_today || 0) -
+        Number(props.metrics.total_expense_today || 0),
+);
+
 // Geolocation Mock / Status for preview
 const gpsStatus = ref<'calculating' | 'inside' | 'outside'>('inside');
 const calculatedDistance = ref(18.5); // meter
@@ -240,7 +258,7 @@ const closePreview = () => {
 <template>
     <Head title="Beranda Operasional - Momoyo Multi-Cabang" />
 
-    <div class="mx-auto max-w-7xl flex-1 space-y-6 p-4 sm:p-6 lg:p-8">
+    <div class="flex-1 space-y-6 p-4 sm:p-6 lg:p-8">
         <!-- TOP BANNER: Brand & Profile Greeting with Quick Role Switcher -->
         <div
             class="relative overflow-hidden rounded-3xl bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 p-6 text-white shadow-xl shadow-rose-900/10 sm:p-8"
@@ -305,11 +323,7 @@ const closePreview = () => {
                     <CardTitle
                         class="text-xs font-bold tracking-wider text-gray-500 uppercase"
                     >
-                        {{
-                            isStaffCabang
-                                ? 'Omset Cabang Hari Ini'
-                                : 'Total Omset Jaringan'
-                        }}
+                        Total Pemasukan
                     </CardTitle>
                     <div
                         class="flex size-8 items-center justify-center rounded-xl bg-rose-100 text-rose-600 dark:bg-rose-950/60"
@@ -321,20 +335,15 @@ const closePreview = () => {
                     <div
                         class="text-2xl font-black tracking-tight text-gray-900 dark:text-white"
                     >
+                        {{ formatRupiah(metrics.total_omset_today) }}
+                    </div>
+                    <p class="mt-1 text-xs text-muted-foreground">
                         {{
-                            formatRupiah(metrics.total_omset_today || 14850000)
+                            isStaffCabang
+                                ? 'Seluruh wallet cabang hari ini'
+                                : 'Seluruh wallet semua cabang hari ini'
                         }}
-                    </div>
-                    <div
-                        class="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground"
-                    >
-                        <span
-                            class="inline-flex items-center gap-0.5 font-bold text-emerald-600"
-                        >
-                            <ArrowUpRight class="size-3.5" /> +12%
-                        </span>
-                        <span>vs hari kemarin</span>
-                    </div>
+                    </p>
                 </CardContent>
             </Card>
 
@@ -348,7 +357,7 @@ const closePreview = () => {
                     <CardTitle
                         class="text-xs font-bold tracking-wider text-gray-500 uppercase"
                     >
-                        Biaya Kas Kecil (Petty Cash)
+                        Total Pengeluaran
                     </CardTitle>
                     <div
                         class="flex size-8 items-center justify-center rounded-xl bg-amber-100 text-amber-600 dark:bg-amber-950/60"
@@ -360,12 +369,10 @@ const closePreview = () => {
                     <div
                         class="text-2xl font-black tracking-tight text-gray-900 dark:text-white"
                     >
-                        {{
-                            formatRupiah(metrics.total_expense_today || 345000)
-                        }}
+                        {{ formatRupiah(metrics.total_expense_today) }}
                     </div>
                     <p class="mt-1 text-xs text-muted-foreground">
-                        Bahan baku darurat & operasional
+                        Pengeluaran operasional hari ini
                     </p>
                 </CardContent>
             </Card>
@@ -380,7 +387,7 @@ const closePreview = () => {
                     <CardTitle
                         class="text-xs font-bold tracking-wider text-gray-500 uppercase"
                     >
-                        Total Net Cash Fisik
+                        Laba Bersih
                     </CardTitle>
                     <div
                         class="flex size-8 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600 dark:bg-emerald-950/60"
@@ -390,16 +397,17 @@ const closePreview = () => {
                 </CardHeader>
                 <CardContent>
                     <div
-                        class="text-2xl font-black tracking-tight text-emerald-600 dark:text-emerald-400"
+                        class="text-2xl font-black tracking-tight"
+                        :class="
+                            labaBersih < 0
+                                ? 'text-red-600 dark:text-red-400'
+                                : 'text-emerald-600 dark:text-emerald-400'
+                        "
                     >
-                        {{
-                            formatRupiah(
-                                metrics.total_net_cash_today || 6450000,
-                            )
-                        }}
+                        {{ formatRupiah(labaBersih) }}
                     </div>
                     <p class="mt-1 text-xs text-muted-foreground">
-                        Omset Cash dikurangi Pengeluaran
+                        Total pemasukan dikurangi total pengeluaran
                     </p>
                 </CardContent>
             </Card>
@@ -866,8 +874,15 @@ const closePreview = () => {
                                 variant="outline"
                                 class="border-purple-300 text-xs text-purple-700"
                             >
-                                3 Menunggu Verifikasi
+                                {{ metrics.pending_cashflows_count ?? 0 }} Menunggu
+                                Verifikasi
                             </Badge>
+                            <Link
+                                href="/cashflow-verifications"
+                                class="text-xs font-semibold text-purple-700 hover:underline"
+                            >
+                                Lihat Semua →
+                            </Link>
                         </div>
                     </div>
                 </CardHeader>
@@ -882,221 +897,127 @@ const closePreview = () => {
                                         Cabang Gerai
                                     </th>
                                     <th class="px-4 py-3 font-bold">Tanggal</th>
-                                    <th class="px-4 py-3 font-bold">
-                                        Net Cash Fisik
+                                    <th class="px-4 py-3 text-right font-bold">
+                                        Total Setor
                                     </th>
-                                    <th class="px-4 py-3 font-bold">
+                                    <th class="px-4 py-3 text-right font-bold">
                                         Nominal Transfer
-                                    </th>
-                                    <th class="px-4 py-3 font-bold">
-                                        Rekening Tujuan
                                     </th>
                                     <th class="px-4 py-3 text-center font-bold">
                                         Bukti Transfer
                                     </th>
                                     <th class="px-4 py-3 text-center font-bold">
-                                        Aksi Verifikasi
+                                        Aksi
                                     </th>
                                 </tr>
                             </thead>
                             <tbody
                                 class="divide-y divide-gray-100 dark:divide-zinc-800"
                             >
-                                <!-- Row 1: Tebet -->
                                 <tr
+                                    v-for="row in pendingSetoran ?? []"
+                                    :key="row.id"
                                     class="transition-colors hover:bg-gray-50/50 dark:hover:bg-zinc-800/30"
                                 >
                                     <td
                                         class="px-4 py-3.5 font-semibold text-gray-900 dark:text-white"
                                     >
-                                        Momoyo Tebet Raya
+                                        {{ row.branch_name }}
                                         <span
                                             class="block text-[11px] font-normal text-gray-400"
-                                            >MMY-JKT-01</span
+                                            >{{ row.branch_code }}</span
                                         >
                                     </td>
                                     <td
                                         class="px-4 py-3.5 text-gray-600 dark:text-gray-400"
                                     >
-                                        Hari ini
+                                        {{
+                                            row.report_date
+                                                .split('-')
+                                                .reverse()
+                                                .join('/')
+                                        }}
                                     </td>
                                     <td
-                                        class="px-4 py-3.5 font-bold text-gray-900 dark:text-white"
+                                        class="px-4 py-3.5 text-right font-mono font-bold text-gray-900 dark:text-white"
                                     >
-                                        Rp 3.665.000
+                                        {{ formatRupiah(row.total_setor) }}
                                     </td>
                                     <td
-                                        class="px-4 py-3.5 font-bold text-emerald-600 dark:text-emerald-400"
+                                        class="px-4 py-3.5 text-right font-mono font-bold"
+                                        :class="
+                                            row.total_transfer ===
+                                            row.total_setor
+                                                ? 'text-emerald-600 dark:text-emerald-400'
+                                                : 'text-red-600'
+                                        "
                                     >
-                                        Rp 3.665.000
-                                    </td>
-                                    <td
-                                        class="px-4 py-3.5 text-gray-600 dark:text-gray-400"
-                                    >
-                                        BCA - 8830192831
-                                    </td>
-                                    <td class="px-4 py-3.5 text-center">
-                                        <button
-                                            @click="
-                                                openPreview(
-                                                    '/assets/images/auth/vector1.svg',
-                                                    'Bukti Transfer BCA - Momoyo Tebet (Rp 3.665.000)',
-                                                )
+                                        {{ formatRupiah(row.total_transfer) }}
+                                        <span
+                                            v-if="
+                                                row.total_transfer !==
+                                                row.total_setor
                                             "
-                                            class="inline-flex items-center gap-1 rounded-lg bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-rose-600 hover:bg-gray-200 dark:bg-zinc-800"
+                                            class="block text-[10px] font-normal"
+                                            >Selisih
+                                            {{
+                                                formatRupiah(
+                                                    row.total_transfer -
+                                                        row.total_setor,
+                                                )
+                                            }}</span
                                         >
-                                            <Eye class="size-3.5" />
-                                            <span>Lihat Bukti</span>
-                                        </button>
                                     </td>
                                     <td class="px-4 py-3.5 text-center">
                                         <div
-                                            class="inline-flex items-center gap-1.5"
+                                            v-if="row.proofs.length"
+                                            class="inline-flex gap-1"
                                         >
-                                            <Button
-                                                size="sm"
-                                                class="h-7 rounded-lg bg-emerald-600 px-2.5 text-xs font-bold text-white hover:bg-emerald-700"
+                                            <button
+                                                v-for="(url, i) in row.proofs"
+                                                :key="i"
+                                                type="button"
+                                                class="size-8 overflow-hidden rounded-md border hover:ring-2 hover:ring-rose-500"
+                                                title="Lihat bukti"
+                                                @click="
+                                                    openPreview(
+                                                        url,
+                                                        `Bukti Transfer - ${row.branch_name}`,
+                                                    )
+                                                "
                                             >
-                                                ✓ Verifikasi Cocok
-                                            </Button>
-                                            <Button
-                                                size="sm"
-                                                variant="outline"
-                                                class="h-7 rounded-lg border-rose-300 px-2 text-xs text-rose-600 hover:bg-rose-50"
-                                            >
-                                                Selisih
-                                            </Button>
+                                                <img
+                                                    :src="url"
+                                                    alt="Bukti transfer"
+                                                    class="size-full object-cover"
+                                                />
+                                            </button>
                                         </div>
+                                        <span v-else class="text-gray-300"
+                                            >-</span
+                                        >
+                                    </td>
+                                    <td class="px-4 py-3.5 text-center">
+                                        <Link
+                                            :href="`/cashflow-verifications?branch_id=${row.branch_id}&status=submitted`"
+                                            class="inline-flex h-7 items-center rounded-lg bg-emerald-600 px-2.5 text-xs font-bold text-white hover:bg-emerald-700"
+                                        >
+                                            Tinjau & Verifikasi
+                                        </Link>
                                     </td>
                                 </tr>
-
-                                <!-- Row 2: Margonda -->
-                                <tr
-                                    class="transition-colors hover:bg-gray-50/50 dark:hover:bg-zinc-800/30"
-                                >
+                                <tr v-if="!(pendingSetoran ?? []).length">
                                     <td
-                                        class="px-4 py-3.5 font-semibold text-gray-900 dark:text-white"
+                                        colspan="6"
+                                        class="py-10 text-center text-gray-400"
                                     >
-                                        Momoyo Margonda Depok
-                                        <span
-                                            class="block text-[11px] font-normal text-gray-400"
-                                            >MMY-DPK-01</span
-                                        >
-                                    </td>
-                                    <td
-                                        class="px-4 py-3.5 text-gray-600 dark:text-gray-400"
-                                    >
-                                        Hari ini
-                                    </td>
-                                    <td
-                                        class="px-4 py-3.5 font-bold text-gray-900 dark:text-white"
-                                    >
-                                        Rp 2.940.000
-                                    </td>
-                                    <td
-                                        class="px-4 py-3.5 font-bold text-emerald-600 dark:text-emerald-400"
-                                    >
-                                        Rp 2.940.000
-                                    </td>
-                                    <td
-                                        class="px-4 py-3.5 text-gray-600 dark:text-gray-400"
-                                    >
-                                        Mandiri - 1370019283712
-                                    </td>
-                                    <td class="px-4 py-3.5 text-center">
-                                        <button
-                                            @click="
-                                                openPreview(
-                                                    '/assets/images/auth/vector2.svg',
-                                                    'Bukti Transfer Mandiri - Momoyo Margonda (Rp 2.940.000)',
-                                                )
-                                            "
-                                            class="inline-flex items-center gap-1 rounded-lg bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-rose-600 hover:bg-gray-200 dark:bg-zinc-800"
-                                        >
-                                            <Eye class="size-3.5" />
-                                            <span>Lihat Bukti</span>
-                                        </button>
-                                    </td>
-                                    <td class="px-4 py-3.5 text-center">
-                                        <div
-                                            class="inline-flex items-center gap-1.5"
-                                        >
-                                            <Button
-                                                size="sm"
-                                                class="h-7 rounded-lg bg-emerald-600 px-2.5 text-xs font-bold text-white hover:bg-emerald-700"
-                                            >
-                                                ✓ Verifikasi Cocok
-                                            </Button>
-                                            <Button
-                                                size="sm"
-                                                variant="outline"
-                                                class="h-7 rounded-lg border-rose-300 px-2 text-xs text-rose-600 hover:bg-rose-50"
-                                            >
-                                                Selisih
-                                            </Button>
-                                        </div>
-                                    </td>
-                                </tr>
-
-                                <!-- Row 3: Gading Serpong -->
-                                <tr
-                                    class="transition-colors hover:bg-gray-50/50 dark:hover:bg-zinc-800/30"
-                                >
-                                    <td
-                                        class="px-4 py-3.5 font-semibold text-gray-900 dark:text-white"
-                                    >
-                                        Momoyo Gading Serpong
-                                        <span
-                                            class="block text-[11px] font-normal text-gray-400"
-                                            >MMY-TNG-01</span
-                                        >
-                                    </td>
-                                    <td
-                                        class="px-4 py-3.5 text-gray-600 dark:text-gray-400"
-                                    >
-                                        Hari ini
-                                    </td>
-                                    <td
-                                        class="px-4 py-3.5 font-bold text-gray-900 dark:text-white"
-                                    >
-                                        Rp 4.120.000
-                                    </td>
-                                    <td
-                                        class="px-4 py-3.5 font-bold text-amber-600 dark:text-amber-400"
-                                    >
-                                        Rp 3.920.000 (Selisih)
-                                    </td>
-                                    <td
-                                        class="px-4 py-3.5 text-gray-600 dark:text-gray-400"
-                                    >
-                                        BCA - 8830192831
-                                    </td>
-                                    <td class="px-4 py-3.5 text-center">
-                                        <button
-                                            @click="
-                                                openPreview(
-                                                    '/assets/images/auth/vector1.svg',
-                                                    'Bukti Transfer BCA - Momoyo Serpong (Rp 3.920.000)',
-                                                )
-                                            "
-                                            class="inline-flex items-center gap-1 rounded-lg bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-rose-600 hover:bg-gray-200 dark:bg-zinc-800"
-                                        >
-                                            <Eye class="size-3.5" />
-                                            <span>Lihat Bukti</span>
-                                        </button>
-                                    </td>
-                                    <td class="px-4 py-3.5 text-center">
-                                        <div
-                                            class="inline-flex items-center gap-1.5"
-                                        >
-                                            <Button
-                                                size="sm"
-                                                variant="outline"
-                                                class="h-7 rounded-lg border-amber-400 bg-amber-50 px-2.5 text-xs font-bold text-amber-700"
-                                            >
-                                                ⚠️ Review Selisih Modal
-                                            </Button>
-                                        </div>
+                                        <CheckCircle2
+                                            class="mx-auto mb-2 size-8 text-emerald-300"
+                                        />
+                                        <p class="text-sm font-bold">
+                                            Tidak ada setoran yang menunggu
+                                            verifikasi
+                                        </p>
                                     </td>
                                 </tr>
                             </tbody>

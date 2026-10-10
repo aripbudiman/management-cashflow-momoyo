@@ -13,13 +13,16 @@ class LeaveRequest extends Model
 
     protected $fillable = [
         'employee_id',
+        'branch_id',
         'type',
         'start_date',
         'end_date',
+        'total_days',
         'reason',
         'attachment_url',
         'status',
         'approved_by',
+        'approved_at',
         'approval_notes',
     ];
 
@@ -32,6 +35,8 @@ class LeaveRequest extends Model
         return [
             'start_date' => 'date',
             'end_date' => 'date',
+            'total_days' => 'integer',
+            'approved_at' => 'datetime',
         ];
     }
 
@@ -56,6 +61,11 @@ class LeaveRequest extends Model
     public function employee(): BelongsTo
     {
         return $this->belongsTo(Employee::class);
+    }
+
+    public function branch(): BelongsTo
+    {
+        return $this->belongsTo(Branch::class);
     }
 
     public function approver(): BelongsTo

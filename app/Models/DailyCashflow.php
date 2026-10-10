@@ -22,6 +22,7 @@ class DailyCashflow extends Model
         'verified_by',
         'verified_at',
         'notes',
+        'revision_notes',
     ];
 
     protected function casts(): array
@@ -66,13 +67,13 @@ class DailyCashflow extends Model
     }
 
     /**
-     * Hitung total cash omset, total expense, dan net cash fisik.
-     * Total Net Cash (Fisik) = Total Omset Cash - Total Cashflow Expenses (Kas Kecil).
+     * Hitung total omset (semua wallet), total pengeluaran, dan total setor.
+     * Total Setor (total_net_cash) = Tunai di Kasir - Total Pengeluaran harian.
      */
     public function recalculateTotals(): void
     {
         $totalOmset = $this->details()->sum('nominal');
-        $cashOmset = $this->details()->where('payment_method', 'cash')->sum('nominal');
+        $cashOmset = $this->details()->where('payment_method', 'tunai')->sum('nominal');
         $totalExpense = $this->expenses()->sum('nominal');
         $totalNetCash = max(0, $cashOmset - $totalExpense);
 

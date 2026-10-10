@@ -66,6 +66,26 @@ class DashboardController extends Controller
         // Setoran Pending Verifikasi Finance
         $pendingTransfersCount = SetoranTransfer::where('status', 'pending_verification')->count();
 
+        // Rekonsiliasi setoran: closing cabang yang menunggu verifikasi Admin Pusat
+        $pendingCashflowsCount = DailyCashflow::where('status', 'submitted')->count();
+        $pendingSetoran = $roleName === 'admin_pusat'
+            ? DailyCashflow::with(['branch:id,branch_name,branch_code', 'setoranTransfers.proofs'])
+                ->where('status', 'submitted')
+                ->orderBy('report_date')
+                ->limit(8)
+                ->get()
+                ->map(fn (DailyCashflow $c) => [
+                    'id' => $c->id,
+                    'branch_id' => $c->branch_id,
+                    'branch_name' => $c->branch?->branch_name,
+                    'branch_code' => $c->branch?->branch_code,
+                    'report_date' => $c->report_date->toDateString(),
+                    'total_setor' => (float) $c->total_net_cash,
+                    'total_transfer' => (float) $c->setoranTransfers->sum('transfer_amount'),
+                    'proofs' => $c->setoranTransfers->flatMap->proofs->map(fn ($p) => $p->photo_full_url)->values(),
+                ])
+            : [];
+
         // Absensi Hari Ini Se-Jaringan
         $todayAttendances = Attendance::with(['employee', 'branch', 'shift'])
             ->where('date', $today)
@@ -98,6 +118,7 @@ class DashboardController extends Controller
                 'total_expense_today' => (float) $totalExpenseToday,
                 'total_net_cash_today' => (float) $totalNetCashToday,
                 'pending_transfers_count' => $pendingTransfersCount,
+                'pending_cashflows_count' => $pendingCashflowsCount,
                 'attendances_summary' => $attendancesSummary,
             ],
             'userBranch' => $userBranch,
@@ -107,6 +128,7 @@ class DashboardController extends Controller
             'branchShifts' => $branchShifts,
             'branches' => $branches,
             'todayCashflows' => $todayCashflows,
+            'pendingSetoran' => $pendingSetoran,
             'recentAttendances' => $todayAttendances,
             'bankAccounts' => $bankAccounts,
             'todayDateFormatted' => Carbon::now()->translatedFormat('l, d F Y'),

@@ -139,6 +139,36 @@ const props = defineProps<{
     shifts?: ShiftData[];
     todayAttendance?: AttendanceRecord | null;
     recentAttendances?: AttendanceRecord[];
+    todaySchedule?: {
+        is_off: boolean;
+        shift_name: string | null;
+        start_time: string | null;
+        end_time: string | null;
+    } | null;
+    schedulePeriod?: Array<{
+        date: string;
+        day: number;
+        weekday: string;
+        is_today: boolean;
+        is_past: boolean;
+        is_off: boolean;
+        is_scheduled: boolean;
+        leave_label?: string | null;
+        shift_name: string | null;
+        start_time: string | null;
+        end_time: string | null;
+        attendance: {
+            status: string;
+            clock_in_time: string | null;
+            clock_out_time: string | null;
+            clock_in_photo_url: string | null;
+            clock_out_photo_url: string | null;
+            clock_in_distance_meters: number | null;
+            clock_out_distance_meters: number | null;
+            notes: string | null;
+        } | null;
+    }>;
+    periodLabel?: string;
     todayDateFormatted: string;
     todayDate: string;
     adminMonitoring?: {
@@ -332,6 +362,12 @@ const resetFilter = () => {
 };
 
 // Status Helpers
+const expandedDate = ref<string | null>(null);
+const toggleDay = (date: string, hasAttendance: boolean) => {
+    if (!hasAttendance) return;
+    expandedDate.value = expandedDate.value === date ? null : date;
+};
+
 const getStatusBadge = (status: string) => {
     switch (status) {
         case 'hadir_tepat_waktu':
@@ -1447,6 +1483,158 @@ const resetEmployeeFace = (employeeId?: number) => {
                     </CardContent>
                 </Card>
             </div>
+
+            <!-- 4b. PERIODE ABSENSI BULAN BERJALAN + JADWAL SHIFT -->
+            <Card
+                v-if="employee && schedulePeriod && schedulePeriod.length"
+                class="border-gray-200 shadow-sm dark:border-zinc-800"
+            >
+                <CardHeader
+                    class="border-b border-gray-100 pb-3.5 dark:border-zinc-800"
+                >
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <Calendar class="size-4.5 text-rose-500" />
+                            <CardTitle class="text-sm font-bold"
+                                >Periode Absensi & Jadwal Shift</CardTitle
+                            >
+                        </div>
+                        <span class="text-xs text-gray-400">{{
+                            periodLabel
+                        }}</span>
+                    </div>
+                    <div
+                        v-if="todaySchedule?.is_off"
+                        class="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs font-bold text-red-600 dark:bg-red-950/40"
+                    >
+                        Hari ini jadwal libur Anda — absensi dinonaktifkan.
+                    </div>
+                </CardHeader>
+                <CardContent class="p-0">
+                    <div class="divide-y divide-gray-100 dark:divide-zinc-800">
+                        <div v-for="d in schedulePeriod" :key="d.date">
+                        <div
+                            class="flex items-center justify-between gap-3 px-4 py-2.5 text-xs"
+                            :class="[
+                                d.is_today ? 'bg-rose-50/60 dark:bg-rose-950/20' : '',
+                                d.is_off ? 'bg-red-50/60 dark:bg-red-950/20' : '',
+                                d.attendance ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-zinc-900/50' : '',
+                            ]"
+                            @click="toggleDay(d.date, !!d.attendance)"
+                        >
+                            <div class="flex items-center gap-3">
+                                <div
+                                    class="w-9 text-center font-black"
+                                    :class="d.is_off ? 'text-red-600' : 'text-gray-900 dark:text-white'"
+                                >
+                                    <div class="text-base leading-none">{{ d.day }}</div>
+                                    <div class="text-[10px] font-medium uppercase">
+                                        {{ d.weekday.slice(0, 3) }}
+                                    </div>
+                                </div>
+                                <div v-if="d.leave_label" class="font-bold text-blue-600">
+                                    {{ d.leave_label }}
+                                </div>
+                                <div v-else-if="d.is_off" class="font-bold text-red-600">
+                                    Libur
+                                </div>
+                                <div v-else-if="d.is_scheduled" class="text-gray-600 dark:text-gray-300">
+                                    <span class="font-bold">{{ d.shift_name }}</span>
+                                    <span class="ml-1.5 font-mono text-gray-500">
+                                        {{ d.start_time }} – {{ d.end_time }}
+                                    </span>
+                                </div>
+                                <div v-else class="text-gray-400">Belum dijadwalkan</div>
+                            </div>
+
+                            <div class="flex items-center gap-2">
+                                <template v-if="d.attendance">
+                                    <span class="font-mono font-bold">
+                                        {{ d.attendance.clock_in_time || '-' }} ➔
+                                        {{ d.attendance.clock_out_time || '-' }}
+                                    </span>
+                                    <Badge
+                                        :class="getStatusBadge(d.attendance.status).class"
+                                        class="text-[10px] font-bold"
+                                    >
+                                        {{ getStatusBadge(d.attendance.status).label }}
+                                    </Badge>
+                                </template>
+                                <Badge
+                                    v-else-if="d.is_past && d.is_scheduled && !d.is_off"
+                                    class="bg-red-100 text-[10px] font-bold text-red-700"
+                                >
+                                    Tidak Hadir
+                                </Badge>
+                                <span v-else-if="d.is_today && !d.is_off" class="font-bold text-rose-500">
+                                    Hari ini
+                                </span>
+                                <ChevronDown
+                                    v-if="d.attendance"
+                                    class="size-4 text-gray-400 transition-transform"
+                                    :class="expandedDate === d.date ? 'rotate-180' : ''"
+                                />
+                            </div>
+                        </div>
+
+                        <!-- Detail clock in / out + bukti foto -->
+                        <div
+                            v-if="d.attendance && expandedDate === d.date"
+                            class="grid grid-cols-2 gap-3 border-t border-gray-100 bg-gray-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-900/40"
+                        >
+                            <div
+                                v-for="(item, idx) in [
+                                    {
+                                        label: 'Clock In',
+                                        time: d.attendance.clock_in_time,
+                                        photo: d.attendance.clock_in_photo_url,
+                                        dist: d.attendance.clock_in_distance_meters,
+                                    },
+                                    {
+                                        label: 'Clock Out',
+                                        time: d.attendance.clock_out_time,
+                                        photo: d.attendance.clock_out_photo_url,
+                                        dist: d.attendance.clock_out_distance_meters,
+                                    },
+                                ]"
+                                :key="idx"
+                                class="space-y-2"
+                            >
+                                <div class="text-[11px] font-bold uppercase tracking-wide text-gray-500">
+                                    {{ item.label }}
+                                </div>
+                                <div class="font-mono text-lg font-black text-gray-900 dark:text-white">
+                                    {{ item.time || '-' }}
+                                </div>
+                                <button
+                                    v-if="item.photo"
+                                    type="button"
+                                    class="block aspect-square w-full overflow-hidden rounded-xl border border-gray-200 shadow-sm hover:ring-2 hover:ring-rose-500"
+                                    @click="openPhotoPreview(item.photo, `${item.label} ${d.date}`)"
+                                >
+                                    <img :src="item.photo" :alt="`Foto ${item.label}`" class="size-full object-cover" />
+                                </button>
+                                <div
+                                    v-else
+                                    class="flex aspect-square w-full items-center justify-center rounded-xl border border-dashed border-gray-300 text-[11px] text-gray-400"
+                                >
+                                    Tidak ada foto
+                                </div>
+                                <div v-if="item.dist !== null && item.photo" class="text-[11px] text-gray-500">
+                                    Jarak ke gerai: {{ item.dist }} m
+                                </div>
+                            </div>
+                            <div
+                                v-if="d.attendance.notes"
+                                class="col-span-2 rounded-lg bg-white p-2.5 text-[11px] text-gray-600 dark:bg-zinc-900"
+                            >
+                                Catatan: {{ d.attendance.notes }}
+                            </div>
+                        </div>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
 
             <!-- 5. RIWAYAT ABSENSI 14 HARI TERAKHIR (INDIVIDUAL KRU) -->
             <Card

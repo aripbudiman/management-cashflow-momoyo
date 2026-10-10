@@ -5,6 +5,10 @@ import {
     CalendarCheck,
     Camera,
     CheckCircle2,
+    CalendarDays,
+    ClipboardList,
+    Receipt,
+    Clock,
     DollarSign,
     FileSpreadsheet,
     FileText,
@@ -109,37 +113,39 @@ const isStaffCabang = computed(() => userRole.value === 'staff_cabang');
                         </SidebarMenuButton>
                     </SidebarMenuItem>
 
-                    <SidebarMenuItem>
+                    <SidebarMenuItem v-if="isStaffCabang">
                         <SidebarMenuButton
                             as-child
-                            tooltip="Closing Kasir & Kas Kecil"
+                            :is-active="isCurrentUrl('/cashflows')"
+                            tooltip="Input Cashflow Harian"
                         >
-                            <a
-                                href="#closing-section"
+                            <Link
+                                href="/cashflows"
                                 class="flex items-center gap-2.5"
                             >
                                 <DollarSign class="size-4 text-amber-500" />
                                 <span class="text-sm font-medium"
-                                    >Closing & Kas Kecil</span
+                                    >Input Cashflow Harian</span
                                 >
-                            </a>
+                            </Link>
                         </SidebarMenuButton>
                     </SidebarMenuItem>
 
                     <SidebarMenuItem>
                         <SidebarMenuButton
                             as-child
+                            :is-active="isCurrentUrl('/leaves')"
                             tooltip="Izin, Sakit & Cuti"
                         >
-                            <a
-                                href="#izin-section"
+                            <Link
+                                href="/leaves"
                                 class="flex items-center gap-2.5"
                             >
                                 <CalendarCheck class="size-4 text-blue-500" />
                                 <span class="text-sm font-medium"
-                                    >Pengajuan Izin / Cuti</span
+                                    >Izin, Sakit & Cuti</span
                                 >
-                            </a>
+                            </Link>
                         </SidebarMenuButton>
                     </SidebarMenuItem>
                 </SidebarMenu>
@@ -156,34 +162,54 @@ const isStaffCabang = computed(() => userRole.value === 'staff_cabang');
                     <SidebarMenuItem>
                         <SidebarMenuButton
                             as-child
+                            :is-active="isCurrentUrl('/cashflow-verifications')"
                             tooltip="Verifikasi Setoran Gerai"
                         >
-                            <a
-                                href="#reconciliation-section"
+                            <Link
+                                href="/cashflow-verifications"
                                 class="flex items-center gap-2.5"
                             >
                                 <CheckCircle2 class="size-4 text-purple-500" />
                                 <span class="text-sm font-medium"
-                                    >Verifikasi Setoran Bank</span
+                                    >Verifikasi Setoran</span
                                 >
-                            </a>
+                            </Link>
                         </SidebarMenuButton>
                     </SidebarMenuItem>
 
                     <SidebarMenuItem>
                         <SidebarMenuButton
                             as-child
-                            tooltip="Rekapitulasi Cashflow Multi-Cabang"
+                            :is-active="isCurrentUrl('/cashflow-reports')"
+                            tooltip="Laporan Cashflow Harian & Bulanan"
                         >
-                            <a
-                                href="#reports-section"
+                            <Link
+                                href="/cashflow-reports"
                                 class="flex items-center gap-2.5"
                             >
                                 <FileSpreadsheet class="size-4 text-teal-500" />
                                 <span class="text-sm font-medium"
-                                    >Rekap Cashflow Jaringan</span
+                                    >Laporan Cashflow</span
                                 >
-                            </a>
+                            </Link>
+                        </SidebarMenuButton>
+                    </SidebarMenuItem>
+
+                    <SidebarMenuItem>
+                        <SidebarMenuButton
+                            as-child
+                            :is-active="isCurrentUrl('/expense-reports')"
+                            tooltip="Laporan Pengeluaran Kas"
+                        >
+                            <Link
+                                href="/expense-reports"
+                                class="flex items-center gap-2.5"
+                            >
+                                <Receipt class="size-4 text-orange-500" />
+                                <span class="text-sm font-medium"
+                                    >Laporan Pengeluaran</span
+                                >
+                            </Link>
                         </SidebarMenuButton>
                     </SidebarMenuItem>
                 </SidebarMenu>
@@ -229,6 +255,45 @@ const isStaffCabang = computed(() => userRole.value === 'staff_cabang');
                                 <span class="text-sm font-medium"
                                     >Master Cabang</span
                                 >
+                            </Link>
+                        </SidebarMenuButton>
+                    </SidebarMenuItem>
+
+                    <SidebarMenuItem>
+                        <SidebarMenuButton
+                            as-child
+                            :is-active="isCurrentUrl('/shifts')"
+                            tooltip="Master Shift"
+                        >
+                            <Link href="/shifts" class="flex items-center gap-2.5">
+                                <Clock class="size-4 text-amber-500" />
+                                <span class="text-sm font-medium">Master Shift</span>
+                            </Link>
+                        </SidebarMenuButton>
+                    </SidebarMenuItem>
+
+                    <SidebarMenuItem>
+                        <SidebarMenuButton
+                            as-child
+                            :is-active="isCurrentUrl('/schedules')"
+                            tooltip="Jadwal Shift & Libur"
+                        >
+                            <Link href="/schedules" class="flex items-center gap-2.5">
+                                <CalendarDays class="size-4 text-blue-500" />
+                                <span class="text-sm font-medium">Jadwal Shift & Libur</span>
+                            </Link>
+                        </SidebarMenuButton>
+                    </SidebarMenuItem>
+
+                    <SidebarMenuItem>
+                        <SidebarMenuButton
+                            as-child
+                            :is-active="isCurrentUrl('/attendance-recap')"
+                            tooltip="Rekap Kehadiran"
+                        >
+                            <Link href="/attendance-recap" class="flex items-center gap-2.5">
+                                <ClipboardList class="size-4 text-purple-500" />
+                                <span class="text-sm font-medium">Rekap Kehadiran</span>
                             </Link>
                         </SidebarMenuButton>
                     </SidebarMenuItem>

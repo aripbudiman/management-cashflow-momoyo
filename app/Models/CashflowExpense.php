@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Storage;
 
 class CashflowExpense extends Model
@@ -46,6 +47,11 @@ class CashflowExpense extends Model
         }
 
         return asset('storage/'.$this->receipt_photo_url);
+    }
+
+    public function photos(): HasMany
+    {
+        return $this->hasMany(CashflowExpensePhoto::class, 'expense_id');
     }
 
     public function cashflow(): BelongsTo

@@ -31,6 +31,11 @@ class Shift extends Model
         return $this->belongsTo(Branch::class);
     }
 
+    public function schedules(): HasMany
+    {
+        return $this->hasMany(EmployeeSchedule::class);
+    }
+
     public function attendances(): HasMany
     {
         return $this->hasMany(Attendance::class);

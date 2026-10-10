@@ -6,6 +6,9 @@ use App\Models\Attendance;
 use App\Models\Branch;
 use App\Models\Employee;
 use App\Models\Shift;
+use App\Repositories\LeaveRequestRepository;
+use App\Services\LeaveRequestService;
+use App\Services\ScheduleService;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -17,6 +20,8 @@ use Inertia\Response;
 
 class AttendanceController extends Controller
 {
+    public function __construct(private readonly ScheduleService $scheduleService) {}
+
     /**
      * Tampilkan halaman Absensi Staff Cabang (Mobile-First) dan Monitoring Pusat.
      */
@@ -38,6 +43,13 @@ class AttendanceController extends Controller
         $branch = $employee?->currentBranch;
         $shifts = $branch ? Shift::where('branch_id', $branch->id)->orderBy('start_time')->get() : collect();
 
+        // Jadwal hari ini dari Admin Pusat: jika ada shift terjadwal, hanya shift itu yang bisa dipilih
+        $todaySchedule = $employee ? $this->scheduleService->forDate($employee, $today) : null;
+        if ($todaySchedule && ! $todaySchedule->is_off && $todaySchedule->shift_id) {
+            $shifts = $shifts->where('id', $todaySchedule->shift_id)->values();
+        }
+        $schedulePeriod = $employee ? $this->scheduleService->employeePeriod($employee, Carbon::today()) : [];
+
         // Absensi hari ini untuk karyawan bersangkutan
         $todayAttendance = null;
         if ($employee) {
@@ -50,10 +62,10 @@ class AttendanceController extends Controller
         // Riwayat absensi 14 hari terakhir karyawan
         $recentAttendances = $employee
             ? Attendance::with(['shift', 'branch'])
-            ->where('employee_id', $employee->id)
-            ->latest('date')
-            ->take(14)
-            ->get()
+                ->where('employee_id', $employee->id)
+                ->latest('date')
+                ->take(14)
+                ->get()
             : collect();
 
         // Data khusus Admin Pusat (Monitoring Seluruh Cabang)
@@ -110,6 +122,14 @@ class AttendanceController extends Controller
             'shifts' => $shifts,
             'todayAttendance' => $todayAttendance,
             'recentAttendances' => $recentAttendances,
+            'todaySchedule' => $todaySchedule ? [
+                'is_off' => $todaySchedule->is_off,
+                'shift_name' => $todaySchedule->shift_name,
+                'start_time' => $todaySchedule->start_time ? substr($todaySchedule->start_time, 0, 5) : null,
+                'end_time' => $todaySchedule->end_time ? substr($todaySchedule->end_time, 0, 5) : null,
+            ] : null,
+            'schedulePeriod' => $schedulePeriod,
+            'periodLabel' => Carbon::today()->translatedFormat('F Y'),
             'todayDateFormatted' => Carbon::now()->translatedFormat('l, d F Y'),
             'todayDate' => $today,
             'adminMonitoring' => $adminMonitoring,
@@ -139,7 +159,7 @@ class AttendanceController extends Controller
         // 1. Validasi Keberadaan Wajah Manusia (Anti-Barang/Objek Mati)
         $faceCheck = $this->verifyHumanFacePresence($request->input('photo'));
         if (! $faceCheck['valid']) {
-            return back()->with('error', 'Pendaftaran Face ID Gagal: ' . ($faceCheck['reason'] ?? 'Wajah manusia tidak terdeteksi pada foto.') . ' Pastikan kamera mengarah tepat ke wajah kru tanpa masker.');
+            return back()->with('error', 'Pendaftaran Face ID Gagal: '.($faceCheck['reason'] ?? 'Wajah manusia tidak terdeteksi pada foto.').' Pastikan kamera mengarah tepat ke wajah kru tanpa masker.');
         }
 
         try {
@@ -157,11 +177,11 @@ class AttendanceController extends Controller
 
             $photoPath = $this->storeBase64Photo(
                 $request->input('photo'),
-                'employees/' . $employee->id . '/faces',
-                'face_' . $employee->id . '_' . time()
+                'employees/'.$employee->id.'/faces',
+                'face_'.$employee->id.'_'.time()
             );
 
-            $faceId = 'FID-' . ($employee->currentBranch?->branch_code ?? 'MMY') . '-' . str_pad((string) $employee->id, 4, '0', STR_PAD_LEFT) . '-' . strtoupper(Str::random(4));
+            $faceId = 'FID-'.($employee->currentBranch?->branch_code ?? 'MMY').'-'.str_pad((string) $employee->id, 4, '0', STR_PAD_LEFT).'-'.strtoupper(Str::random(4));
 
             $employee->update([
                 'face_id' => $faceId,
@@ -172,7 +192,7 @@ class AttendanceController extends Controller
 
             return back()->with('success', 'Face ID Anda berhasil didaftarkan! Sekarang Anda siap melakukan absensi.');
         } catch (\Exception $e) {
-            return back()->with('error', 'Gagal mendaftarkan Face ID: ' . $e->getMessage());
+            return back()->with('error', 'Gagal mendaftarkan Face ID: '.$e->getMessage());
         }
     }
 
@@ -235,7 +255,20 @@ class AttendanceController extends Controller
         $existing = Attendance::where('employee_id', $employee->id)->where('date', $today)->first();
 
         if ($existing && $existing->clock_in_time) {
-            return back()->with('error', 'Anda sudah melakukan Clock In hari ini pada jam ' . substr($existing->clock_in_time, 0, 5) . ' WIB.');
+            return back()->with('error', 'Anda sudah melakukan Clock In hari ini pada jam '.substr($existing->clock_in_time, 0, 5).' WIB.');
+        }
+
+        // 2b. Blok absen jika hari ini dijadwalkan libur oleh Admin Pusat
+        $schedule = $this->scheduleService->forDate($employee, $today);
+        if ($schedule?->is_off) {
+            return back()->with('error', 'Hari ini adalah jadwal libur Anda. Absensi tidak dapat dilakukan.');
+        }
+
+        $leave = app(LeaveRequestRepository::class)->approvedOnDate($employee->id, $today);
+        if ($leave) {
+            $label = LeaveRequestService::TYPE_LABELS[$leave->type] ?? $leave->type;
+
+            return back()->with('error', "Hari ini Anda sedang {$label} (disetujui Admin Pusat). Absensi tidak dapat dilakukan.");
         }
 
         // 3. Validasi input
@@ -274,7 +307,7 @@ class AttendanceController extends Controller
         // 5. Validasi Keberadaan Wajah Manusia (Tolak jika memotret barang/objek lain)
         $faceCheck = $this->verifyHumanFacePresence($request->input('photo'));
         if (! $faceCheck['valid']) {
-            return back()->with('error', 'Verifikasi Wajah Gagal: ' . ($faceCheck['reason'] ?? 'Wajah manusia tidak terdeteksi!') . ' Pastikan kamera mengarah tepat ke wajah Anda di dalam lingkaran oval, bukan ke barang atau objek lain.');
+            return back()->with('error', 'Verifikasi Wajah Gagal: '.($faceCheck['reason'] ?? 'Wajah manusia tidak terdeteksi!').' Pastikan kamera mengarah tepat ke wajah Anda di dalam lingkaran oval, bukan ke barang atau objek lain.');
         }
 
         // 6. Verifikasi Kesamaan Wajah dengan Face ID Terdaftar
@@ -292,22 +325,35 @@ class AttendanceController extends Controller
         try {
             $photoPath = $this->storeBase64Photo(
                 $request->input('photo'),
-                'employees/' . $employee->id . '/attendance',
-                'clock_in_' . $employee->id . '_' . date('Ymd_His')
+                'employees/'.$employee->id.'/attendance',
+                'clock_in_'.$employee->id.'_'.date('Ymd_His')
             );
         } catch (\Exception $e) {
-            return back()->with('error', 'Gagal memproses foto selfie: ' . $e->getMessage());
+            return back()->with('error', 'Gagal memproses foto selfie: '.$e->getMessage());
         }
 
         // 8. Tentukan Shift & Status Kehadiran (Tepat Waktu vs Terlambat)
-        $shiftId = $request->input('shift_id');
-        $shift = $shiftId ? Shift::find($shiftId) : Shift::where('branch_id', $branch->id)->first();
+        // Prioritas: shift dari jadwal Admin Pusat (snapshot) -> pilihan manual -> shift pertama cabang
+        if ($schedule && $schedule->shift_id) {
+            $shift = Shift::find($schedule->shift_id) ?? new Shift([
+                'shift_name' => $schedule->shift_name,
+                'start_time' => $schedule->start_time,
+                'end_time' => $schedule->end_time,
+                'late_tolerance_minutes' => $schedule->late_tolerance_minutes,
+            ]);
+            // Pakai nilai snapshot jadwal agar perubahan master shift tidak mengubah status hari ini
+            $shift->start_time = $schedule->start_time;
+            $shift->late_tolerance_minutes = $schedule->late_tolerance_minutes;
+        } else {
+            $shiftId = $request->input('shift_id');
+            $shift = $shiftId ? Shift::find($shiftId) : Shift::where('branch_id', $branch->id)->first();
+        }
 
         $status = 'hadir_tepat_waktu';
         $currentTime = Carbon::now();
 
         if ($shift) {
-            $shiftStartTime = Carbon::parse($today . ' ' . $shift->start_time);
+            $shiftStartTime = Carbon::parse($today.' '.$shift->start_time);
             $lateTolerance = (int) ($shift->late_tolerance_minutes ?? 15);
             $maxTime = (clone $shiftStartTime)->addMinutes($lateTolerance);
 
@@ -370,7 +416,7 @@ class AttendanceController extends Controller
         }
 
         if ($attendance->clock_out_time) {
-            return back()->with('error', 'Anda sudah melakukan Clock Out hari ini pada jam ' . substr($attendance->clock_out_time, 0, 5) . ' WIB.');
+            return back()->with('error', 'Anda sudah melakukan Clock Out hari ini pada jam '.substr($attendance->clock_out_time, 0, 5).' WIB.');
         }
 
         // 3. Validasi input
@@ -408,7 +454,7 @@ class AttendanceController extends Controller
         // 5. Validasi Keberadaan Wajah Manusia (Tolak jika memotret barang/objek lain)
         $faceCheck = $this->verifyHumanFacePresence($request->input('photo'));
         if (! $faceCheck['valid']) {
-            return back()->with('error', 'Verifikasi Wajah Gagal: ' . ($faceCheck['reason'] ?? 'Wajah manusia tidak terdeteksi!') . ' Pastikan kamera mengarah tepat ke wajah Anda di dalam lingkaran oval saat clock out, bukan ke barang lain.');
+            return back()->with('error', 'Verifikasi Wajah Gagal: '.($faceCheck['reason'] ?? 'Wajah manusia tidak terdeteksi!').' Pastikan kamera mengarah tepat ke wajah Anda di dalam lingkaran oval saat clock out, bukan ke barang lain.');
         }
 
         // 6. Verifikasi Kesamaan Wajah dengan Face ID
@@ -426,11 +472,11 @@ class AttendanceController extends Controller
         try {
             $photoPath = $this->storeBase64Photo(
                 $request->input('photo'),
-                'employees/' . $employee->id . '/attendance',
-                'clock_out_' . $employee->id . '_' . date('Ymd_His')
+                'employees/'.$employee->id.'/attendance',
+                'clock_out_'.$employee->id.'_'.date('Ymd_His')
             );
         } catch (\Exception $e) {
-            return back()->with('error', 'Gagal memproses foto selfie: ' . $e->getMessage());
+            return back()->with('error', 'Gagal memproses foto selfie: '.$e->getMessage());
         }
 
         $currentTime = Carbon::now();
@@ -438,7 +484,7 @@ class AttendanceController extends Controller
         // 8. Update Record Absensi
         $notes = $attendance->notes;
         if ($request->filled('notes')) {
-            $notes = $notes ? ($notes . ' | Out: ' . $request->input('notes')) : $request->input('notes');
+            $notes = $notes ? ($notes.' | Out: '.$request->input('notes')) : $request->input('notes');
         }
 
         $attendance->update([
@@ -489,8 +535,8 @@ class AttendanceController extends Controller
             }
 
             $ext = in_array($type, ['jpeg', 'jpg']) ? 'jpg' : ($type === 'png' ? 'png' : 'webp');
-            $filename = $filenamePrefix . '.' . $ext;
-            $path = $folder . '/' . $filename;
+            $filename = $filenamePrefix.'.'.$ext;
+            $path = $folder.'/'.$filename;
 
             $disk = config('filesystems.default', 's3');
             Storage::disk($disk)->put($path, $decoded);
@@ -604,7 +650,7 @@ class AttendanceController extends Controller
 
             return ['valid' => true, 'reason' => null];
         } catch (\Throwable $e) {
-            return ['valid' => false, 'reason' => 'Gagal memverifikasi wajah: ' . $e->getMessage()];
+            return ['valid' => false, 'reason' => 'Gagal memverifikasi wajah: '.$e->getMessage()];
         }
     }
 

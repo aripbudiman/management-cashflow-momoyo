@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Services\AppSettingService;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -42,7 +43,8 @@ class HandleInertiaRequests extends Middleware
 
         return [
             ...parent::share($request),
-            'name' => config('app.name'),
+            'name' => app(AppSettingService::class)->name(),
+            'appIconUrl' => app(AppSettingService::class)->iconUrl(),
             'auth' => [
                 'user' => $user,
             ],

@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import { usePage } from '@inertiajs/vue3';
 import type { HTMLAttributes } from 'vue';
+import { computed } from 'vue';
 
 defineOptions({
     inheritAttrs: false,
@@ -10,10 +12,20 @@ type Props = {
 };
 
 defineProps<Props>();
+
+const iconUrl = computed(() => usePage().props.appIconUrl as string | null);
 </script>
 
 <template>
+    <img
+        v-if="iconUrl"
+        :src="iconUrl"
+        alt="Logo"
+        :class="['rounded-md object-cover', className]"
+        v-bind="$attrs"
+    />
     <svg
+        v-else
         xmlns="http://www.w3.org/2000/svg"
         viewBox="0 0 40 42"
         :class="className"

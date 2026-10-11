@@ -30,15 +30,24 @@
             }
         </style>
 
-        <link rel="icon" href="/favicon.ico" sizes="any">
-        <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-        <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+        @php
+            $appSettings = app(\App\Services\AppSettingService::class);
+            $appIconUrl = $appSettings->iconUrl();
+        @endphp
+        @if ($appIconUrl)
+            <link rel="icon" href="{{ $appIconUrl }}">
+            <link rel="apple-touch-icon" href="{{ $appIconUrl }}">
+        @else
+            <link rel="icon" href="/favicon.ico" sizes="any">
+            <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+            <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+        @endif
 
         @fonts
 
         @vite(['resources/css/app.css', 'resources/js/app.ts', "resources/js/pages/{$page['component']}.vue"])
         <x-inertia::head>
-            <title>{{ config('app.name', 'Laravel') }}</title>
+            <title>{{ $appSettings->name() }}</title>
         </x-inertia::head>
     </head>
     <body class="font-sans antialiased">

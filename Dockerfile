@@ -8,7 +8,7 @@ RUN composer install --no-dev --no-interaction --no-progress --no-scripts \
     --prefer-dist --optimize-autoloader --ignore-platform-reqs
 
 # ---------- Stage 2: build asset (Vite butuh artisan untuk wayfinder) ----------
-FROM php:8.3-cli-alpine AS assets
+FROM php:8.4-cli-alpine AS assets
 RUN apk add --no-cache libstdc++ libgcc \
     && docker-php-ext-install pcntl
 COPY --from=oven/bun:1-alpine /usr/local/bin/bun /usr/local/bin/bun
@@ -23,7 +23,7 @@ RUN cp .env.example .env \
     && rm -f .env
 
 # ---------- Stage 3: runtime ----------
-FROM php:8.3-fpm-alpine AS app
+FROM php:8.4-fpm-alpine AS app
 
 RUN apk add --no-cache postgresql-libs icu-libs libzip oniguruma \
     && apk add --no-cache --virtual .build-deps $PHPIZE_DEPS postgresql-dev icu-dev libzip-dev oniguruma-dev \

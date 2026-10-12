@@ -14,6 +14,10 @@ import {
     FileText,
     LayoutGrid,
     MapPin,
+    Package,
+    PackageCheck,
+    Boxes,
+    ArrowLeftRight,
     Shield,
     Users,
 } from '@lucide/vue';
@@ -131,6 +135,45 @@ const isStaffCabang = computed(() => userRole.value === 'staff_cabang');
                         </SidebarMenuButton>
                     </SidebarMenuItem>
 
+                    <SidebarMenuItem v-if="isStaffCabang">
+                        <SidebarMenuButton
+                            as-child
+                            :is-active="isCurrentUrl('/stock-reports')"
+                            tooltip="Input Stok Harian"
+                        >
+                            <Link href="/stock-reports" class="flex items-center gap-2.5">
+                                <PackageCheck class="size-4 text-sky-500" />
+                                <span class="text-sm font-medium">Input Stok Harian</span>
+                            </Link>
+                        </SidebarMenuButton>
+                    </SidebarMenuItem>
+
+                    <SidebarMenuItem>
+                        <SidebarMenuButton
+                            as-child
+                            :is-active="isCurrentUrl('/stock-monitor')"
+                            tooltip="Pantauan Stok"
+                        >
+                            <Link href="/stock-monitor" class="flex items-center gap-2.5">
+                                <Boxes class="size-4 text-indigo-500" />
+                                <span class="text-sm font-medium">Pantauan Stok</span>
+                            </Link>
+                        </SidebarMenuButton>
+                    </SidebarMenuItem>
+
+                    <SidebarMenuItem>
+                        <SidebarMenuButton
+                            as-child
+                            :is-active="isCurrentUrl('/stock-transfers')"
+                            tooltip="Transfer Antar Cabang"
+                        >
+                            <Link href="/stock-transfers" class="flex items-center gap-2.5">
+                                <ArrowLeftRight class="size-4 text-cyan-500" />
+                                <span class="text-sm font-medium">Transfer Stok</span>
+                            </Link>
+                        </SidebarMenuButton>
+                    </SidebarMenuItem>
+
                     <SidebarMenuItem>
                         <SidebarMenuButton
                             as-child
@@ -209,6 +252,19 @@ const isStaffCabang = computed(() => userRole.value === 'staff_cabang');
                                 <span class="text-sm font-medium"
                                     >Laporan Pengeluaran</span
                                 >
+                            </Link>
+                        </SidebarMenuButton>
+                    </SidebarMenuItem>
+
+                    <SidebarMenuItem>
+                        <SidebarMenuButton
+                            as-child
+                            :is-active="isCurrentUrl('/stock-verifications')"
+                            tooltip="Verifikasi Stok Harian"
+                        >
+                            <Link href="/stock-verifications" class="flex items-center gap-2.5">
+                                <PackageCheck class="size-4 text-sky-500" />
+                                <span class="text-sm font-medium">Verifikasi Stok</span>
                             </Link>
                         </SidebarMenuButton>
                     </SidebarMenuItem>
@@ -294,6 +350,19 @@ const isStaffCabang = computed(() => userRole.value === 'staff_cabang');
                             <Link href="/attendance-recap" class="flex items-center gap-2.5">
                                 <ClipboardList class="size-4 text-purple-500" />
                                 <span class="text-sm font-medium">Rekap Kehadiran</span>
+                            </Link>
+                        </SidebarMenuButton>
+                    </SidebarMenuItem>
+
+                    <SidebarMenuItem>
+                        <SidebarMenuButton
+                            as-child
+                            :is-active="isCurrentUrl('/items')"
+                            tooltip="Master Barang"
+                        >
+                            <Link href="/items" class="flex items-center gap-2.5">
+                                <Package class="size-4 text-orange-500" />
+                                <span class="text-sm font-medium">Master Barang</span>
                             </Link>
                         </SidebarMenuButton>
                     </SidebarMenuItem>

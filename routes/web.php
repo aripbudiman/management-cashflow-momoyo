@@ -9,9 +9,14 @@ use App\Http\Controllers\DailyCashflowController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\ExpenseReportController;
+use App\Http\Controllers\ItemController;
 use App\Http\Controllers\LeaveRequestController;
 use App\Http\Controllers\ScheduleController;
 use App\Http\Controllers\ShiftController;
+use App\Http\Controllers\StockMonitorController;
+use App\Http\Controllers\StockReportController;
+use App\Http\Controllers\StockTransferController;
+use App\Http\Controllers\StockVerificationController;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -63,6 +68,20 @@ Route::middleware(['auth'])->group(function () {
     Route::middleware(['role:staff_cabang'])->group(function () {
         Route::get('/cashflows', [DailyCashflowController::class, 'index'])->name('cashflows.index');
         Route::post('/cashflows', [DailyCashflowController::class, 'store'])->name('cashflows.store');
+
+        // Input stok harian & kirim transfer antar cabang (Staff Cabang)
+        Route::get('/stock-reports', [StockReportController::class, 'index'])->name('stock-reports.index');
+        Route::post('/stock-reports', [StockReportController::class, 'store'])->name('stock-reports.store');
+        Route::post('/stock-transfers', [StockTransferController::class, 'store'])->name('stock-transfers.store');
+        Route::post('/stock-transfers/{transfer}/receive', [StockTransferController::class, 'receive'])->name('stock-transfers.receive');
+    });
+
+    // Pantauan stok, kartu stok & daftar transfer (Staff = cabang sendiri, Admin Pusat = semua cabang)
+    Route::middleware(['role:staff_cabang,admin_pusat'])->group(function () {
+        Route::get('/stock-monitor', [StockMonitorController::class, 'index'])->name('stock-monitor.index');
+        Route::get('/stock-monitor/card', [StockMonitorController::class, 'card'])->name('stock-monitor.card');
+        Route::get('/stock-transfers', [StockTransferController::class, 'index'])->name('stock-transfers.index');
+        Route::post('/stock-transfers/{transfer}/cancel', [StockTransferController::class, 'cancel'])->name('stock-transfers.cancel');
     });
 
     // Pengajuan Izin, Sakit, Cuti (karyawan mengajukan, admin pusat memutuskan)
@@ -85,6 +104,13 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/cashflow-verifications/{cashflow}/revise', [CashflowVerificationController::class, 'revise'])->name('cashflow-verifications.revise');
         Route::get('/expense-reports', [ExpenseReportController::class, 'index'])->name('expense-reports.index');
         Route::get('/cashflow-reports', [CashflowReportController::class, 'index'])->name('cashflow-reports.index');
+
+        // Master barang (SSOT harga) & verifikasi stok harian
+        Route::post('/items/import', [ItemController::class, 'import'])->name('items.import');
+        Route::resource('items', ItemController::class)->only(['index', 'store', 'update', 'destroy']);
+        Route::get('/stock-verifications', [StockVerificationController::class, 'index'])->name('stock-verifications.index');
+        Route::post('/stock-verifications/{report}/verify', [StockVerificationController::class, 'verify'])->name('stock-verifications.verify');
+        Route::post('/stock-verifications/{report}/revise', [StockVerificationController::class, 'revise'])->name('stock-verifications.revise');
 
         // Shift, jadwal & hari libur karyawan, rekap kehadiran
         Route::resource('shifts', ShiftController::class)->only(['index', 'store', 'update', 'destroy']);

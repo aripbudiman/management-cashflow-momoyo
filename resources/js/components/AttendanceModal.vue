@@ -16,6 +16,7 @@ import {
     X,
 } from '@lucide/vue';
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
+import LocationMap from '@/components/LocationMap.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -51,6 +52,7 @@ const props = defineProps<{
     }>;
     employeeFaceUrl?: string | null;
     employeeName?: string;
+    attendanceType?: 'radius' | 'flexible';
 }>();
 
 const emit = defineEmits<{
@@ -69,7 +71,10 @@ const {
 
 // Geofence states
 const calculatedDistance = ref<number | null>(null);
+// Tipe fleksibel: bebas lokasi, cukup koordinat GPS terdeteksi (lokasi tetap dicatat)
+const isFlexible = computed(() => props.attendanceType === 'flexible');
 const isInsideRadius = computed(() => {
+    if (isFlexible.value) return !!coords.value?.latitude && !!coords.value?.longitude;
     if (!props.branch || calculatedDistance.value === null) return false;
     const maxRadius = props.branch.radius_meters || 50;
     return calculatedDistance.value <= maxRadius;
@@ -284,7 +289,7 @@ const submitAttendance = () => {
         return;
     }
 
-    if (!isInsideRadius.value) {
+    if (!isFlexible.value && !isInsideRadius.value) {
         alert(
             `Lokasi Anda berada di luar radius gerai (${calculatedDistance.value}m dari gerai, batas max ${props.branch?.radius_meters || 50}m). Anda harus berada di area gerai untuk melakukan absen.`,
         );
@@ -457,7 +462,11 @@ onBeforeUnmount(() => {
                                         v-else-if="isInsideRadius"
                                         class="text-emerald-800 dark:text-emerald-300"
                                     >
-                                        Lokasi Valid: Dalam Radius Gerai
+                                        {{
+                                            isFlexible
+                                                ? 'Mode Fleksibel: Lokasi Dicatat'
+                                                : 'Lokasi Valid: Dalam Radius Gerai'
+                                        }}
                                     </span>
                                     <span
                                         v-else
@@ -470,6 +479,21 @@ onBeforeUnmount(() => {
                                     <template v-if="isGpsLoading">
                                         Menyambungkan ke satelit GPS
                                         perangkat...
+                                    </template>
+                                    <template v-else-if="isFlexible && coords">
+                                        Anda bisa absen di mana saja. Koordinat
+                                        <strong
+                                            >{{ coords.latitude.toFixed(5) }},
+                                            {{
+                                                coords.longitude.toFixed(5)
+                                            }}</strong
+                                        >
+                                        akan tercatat<template
+                                            v-if="calculatedDistance !== null"
+                                        >
+                                            ({{ calculatedDistance }}m dari
+                                            gerai)</template
+                                        >.
                                     </template>
                                     <template
                                         v-else-if="calculatedDistance !== null"
@@ -511,6 +535,7 @@ onBeforeUnmount(() => {
                     <div
                         v-if="
                             !isGpsLoading &&
+                            !isFlexible &&
                             !isInsideRadius &&
                             calculatedDistance !== null
                         "
@@ -523,6 +548,30 @@ onBeforeUnmount(() => {
                         >
                     </div>
                 </div>
+
+                <!-- PETA POSISI SAAT INI -->
+                <LocationMap
+                    v-if="coords"
+                    :points="[
+                        {
+                            lat: coords.latitude,
+                            lng: coords.longitude,
+                            label: 'Posisi Anda',
+                            color: '#2563eb',
+                        },
+                    ]"
+                    :branch="
+                        branch && branch.latitude != null
+                            ? {
+                                  lat: Number(branch.latitude),
+                                  lng: Number(branch.longitude),
+                                  radius: branch.radius_meters || 50,
+                                  name: branch.branch_name,
+                              }
+                            : null
+                    "
+                    height-class="h-44"
+                />
 
                 <!-- 2. PILIH SHIFT (KHUSUS CLOCK IN) -->
                 <div

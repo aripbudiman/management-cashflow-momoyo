@@ -20,6 +20,7 @@ class StoreStockTransferRequest extends FormRequest
             'to_branch_id' => ['required', 'integer', 'exists:branches,id', 'different:'.$this->user()?->employee?->current_branch_id],
             'item_id' => ['required', 'integer', 'exists:items,id'],
             'qty' => ['required', 'numeric', 'gt:0', 'max:9999999'],
+            'unit_id' => ['nullable', 'integer', 'exists:units,id'],
             'note' => ['nullable', 'string', 'max:255'],
         ];
     }

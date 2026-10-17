@@ -30,6 +30,7 @@ class Attendance extends Model
         'clock_out_face_match_percentage',
         'is_face_mismatch',
         'status',
+        'location_mode',
         'notes',
     ];
 

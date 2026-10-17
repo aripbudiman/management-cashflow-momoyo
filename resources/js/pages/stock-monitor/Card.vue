@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { Head, Link, router } from '@inertiajs/vue3';
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { fmtDate } from '@/lib/format';
+import { formatQty } from '@/lib/units';
+import type { QtyMode, UnitOption } from '@/lib/units';
 
 interface Movement {
     id: number;
@@ -16,12 +18,27 @@ interface Movement {
 
 const props = defineProps<{
     branches: Array<{ id: number; branch_name: string }>;
-    items: Array<{ id: number; name: string; unit: string }>;
+    items: Array<{ id: number; name: string; unit: string; unit_options: UnitOption[]; default_unit_id: number | null }>;
     filters: { branch_id: number; item_id: number | null; from: string; to: string };
     types: Record<string, string>;
     opening: number;
     movements: Movement[];
 }>();
+
+const selected = computed(() => props.items.find((i) => i.id === props.filters.item_id) ?? null);
+const mode = ref<string>('default');
+
+const qtyMode = computed<QtyMode>(() => {
+    if (mode.value === 'mixed' || mode.value === 'base') return mode.value;
+    if (mode.value === 'default') return selected.value?.default_unit_id ?? 'base';
+    return Number(mode.value);
+});
+
+const show = (base: number | string, signed = false): string => {
+    if (!selected.value) return String(base);
+    const text = formatQty(Number(base), selected.value.unit_options, qtyMode.value);
+    return signed && Number(base) > 0 ? `+${text}` : text;
+};
 
 const rows = computed(() => {
     let balance = Number(props.opening);
@@ -31,7 +48,10 @@ const rows = computed(() => {
     });
 });
 
-const go = (k: string, v: string) => router.get('/stock-monitor/card', { ...props.filters, [k]: v || undefined }, { preserveState: true });
+const go = (k: string, v: string) => {
+    if (k === 'item_id') mode.value = 'default';
+    router.get('/stock-monitor/card', { ...props.filters, [k]: v || undefined }, { preserveState: true });
+};
 const selectCls = 'h-9 rounded-md border border-gray-200 bg-white px-3 text-sm dark:border-zinc-700 dark:bg-zinc-900';
 </script>
 
@@ -53,7 +73,12 @@ const selectCls = 'h-9 rounded-md border border-gray-200 bg-white px-3 text-sm d
             </select>
             <select :value="filters.item_id ?? ''" :class="selectCls" @change="go('item_id', ($event.target as HTMLSelectElement).value)">
                 <option value="">Pilih barang...</option>
-                <option v-for="i in items" :key="i.id" :value="i.id">{{ i.name }} ({{ i.unit }})</option>
+                <option v-for="i in items" :key="i.id" :value="i.id">{{ i.name }}</option>
+            </select>
+            <select v-if="selected" v-model="mode" :class="selectCls">
+                <option value="default">Satuan default</option>
+                <option value="mixed">Campuran</option>
+                <option v-for="u in [...selected.unit_options].reverse()" :key="u.unit_id" :value="u.unit_id">{{ u.name }}</option>
             </select>
             <input type="date" :value="filters.from" :class="selectCls" @change="go('from', ($event.target as HTMLInputElement).value)" />
             <input type="date" :value="filters.to" :class="selectCls" @change="go('to', ($event.target as HTMLInputElement).value)" />
@@ -74,16 +99,16 @@ const selectCls = 'h-9 rounded-md border border-gray-200 bg-white px-3 text-sm d
                     <tbody class="divide-y">
                         <tr class="bg-gray-50/60 dark:bg-zinc-900/60">
                             <td class="p-3" colspan="3">Saldo awal {{ fmtDate(filters.from) }}</td>
-                            <td class="p-3 text-right font-mono font-bold">{{ Number(opening) }}</td>
+                            <td class="p-3 text-right text-xs font-bold">{{ show(opening) }}</td>
                             <td />
                         </tr>
                         <tr v-for="m in rows" :key="m.id">
                             <td class="p-3">{{ fmtDate(m.moved_at) }}</td>
                             <td class="p-3">{{ types[m.type] ?? m.type }}</td>
-                            <td class="p-3 text-right font-mono font-bold" :class="Number(m.qty) > 0 ? 'text-emerald-600' : 'text-red-600'">
-                                {{ Number(m.qty) > 0 ? '+' : '' }}{{ Number(m.qty) }}
+                            <td class="p-3 text-right text-xs font-bold" :class="Number(m.qty) > 0 ? 'text-emerald-600' : 'text-red-600'">
+                                {{ show(m.qty, true) }}
                             </td>
-                            <td class="p-3 text-right font-mono">{{ m.balance }}</td>
+                            <td class="p-3 text-right text-xs">{{ show(m.balance) }}</td>
                             <td class="p-3 text-xs text-gray-500">{{ m.user?.name }}<span v-if="m.note"> · {{ m.note }}</span></td>
                         </tr>
                     </tbody>

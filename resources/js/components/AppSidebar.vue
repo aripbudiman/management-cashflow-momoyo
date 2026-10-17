@@ -15,6 +15,7 @@ import {
     LayoutGrid,
     MapPin,
     Package,
+    Ruler,
     PackageCheck,
     Boxes,
     ArrowLeftRight,
@@ -363,6 +364,19 @@ const isStaffCabang = computed(() => userRole.value === 'staff_cabang');
                             <Link href="/items" class="flex items-center gap-2.5">
                                 <Package class="size-4 text-orange-500" />
                                 <span class="text-sm font-medium">Master Barang</span>
+                            </Link>
+                        </SidebarMenuButton>
+                    </SidebarMenuItem>
+
+                    <SidebarMenuItem>
+                        <SidebarMenuButton
+                            as-child
+                            :is-active="isCurrentUrl('/units')"
+                            tooltip="Master Satuan"
+                        >
+                            <Link href="/units" class="flex items-center gap-2.5">
+                                <Ruler class="size-4 text-pink-500" />
+                                <span class="text-sm font-medium">Master Satuan</span>
                             </Link>
                         </SidebarMenuButton>
                     </SidebarMenuItem>

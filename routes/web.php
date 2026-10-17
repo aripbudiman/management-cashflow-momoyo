@@ -18,6 +18,7 @@ use App\Http\Controllers\StockMonitorController;
 use App\Http\Controllers\StockReportController;
 use App\Http\Controllers\StockTransferController;
 use App\Http\Controllers\StockVerificationController;
+use App\Http\Controllers\UnitController;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -113,6 +114,7 @@ Route::middleware(['auth'])->group(function () {
         // Master barang (SSOT harga) & verifikasi stok harian
         Route::post('/items/import', [ItemController::class, 'import'])->name('items.import');
         Route::resource('items', ItemController::class)->only(['index', 'store', 'update', 'destroy']);
+        Route::resource('units', UnitController::class)->only(['index', 'store', 'update', 'destroy']);
         Route::get('/stock-verifications', [StockVerificationController::class, 'index'])->name('stock-verifications.index');
         Route::post('/stock-verifications/{report}/verify', [StockVerificationController::class, 'verify'])->name('stock-verifications.verify');
         Route::post('/stock-verifications/{report}/revise', [StockVerificationController::class, 'revise'])->name('stock-verifications.revise');

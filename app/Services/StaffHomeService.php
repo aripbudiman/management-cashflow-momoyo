@@ -45,6 +45,7 @@ class StaffHomeService
                 'nik' => $employee->nik,
                 'face_photo_url' => $employee->face_photo_url,
                 'is_face_registered' => $employee->hasFaceRegistered(),
+                'attendance_type' => $employee->attendance_type,
             ],
             'branch' => $branch?->only(['id', 'branch_name', 'branch_code', 'latitude', 'longitude', 'radius_meters']),
             'shifts' => $shifts,

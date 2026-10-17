@@ -35,6 +35,7 @@ import {
 import { computed, onMounted, ref } from 'vue';
 import AttendanceModal from '@/components/AttendanceModal.vue';
 import FaceRegistrationModal from '@/components/FaceRegistrationModal.vue';
+import LocationMap from '@/components/LocationMap.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -68,6 +69,7 @@ interface EmployeeData {
     phone_number: string | null;
     status: string;
     current_branch_id: number;
+    attendance_type?: 'radius' | 'flexible';
     face_id: string | null;
     face_photo_path: string | null;
     face_photo_url: string | null;
@@ -116,6 +118,7 @@ interface AttendanceRecord {
     clock_in_face_match_percentage?: number | null;
     clock_out_face_match_percentage?: number | null;
     is_face_mismatch?: boolean;
+    location_mode?: string;
     status: string;
     notes: string | null;
     employee?: {
@@ -166,6 +169,11 @@ const props = defineProps<{
             clock_in_distance_meters: number | null;
             clock_out_distance_meters: number | null;
             notes: string | null;
+            location_mode?: string;
+            clock_in_lat?: number | null;
+            clock_in_long?: number | null;
+            clock_out_lat?: number | null;
+            clock_out_long?: number | null;
         } | null;
     }>;
     periodLabel?: string;
@@ -744,6 +752,11 @@ const resetEmployeeFace = (employeeId?: number) => {
                                             {{ row.clock_in_distance_meters }}m
                                         </span>
                                         <span v-else class="text-gray-400">-</span>
+                                        <span
+                                            v-if="row.location_mode === 'flexible'"
+                                            class="ml-1 rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold text-amber-700"
+                                            >Fleksibel</span
+                                        >
                                     </td>
                                     <td class="px-5 py-3.5 whitespace-nowrap">
                                         <div class="flex items-center gap-2">
@@ -1624,6 +1637,18 @@ const resetEmployeeFace = (employeeId?: number) => {
                                     Jarak ke gerai: {{ item.dist }} m
                                 </div>
                             </div>
+                            <LocationMap
+                                v-if="d.attendance.clock_in_lat && d.attendance.clock_in_long"
+                                class="col-span-2"
+                                :points="[
+                                    { lat: Number(d.attendance.clock_in_lat), lng: Number(d.attendance.clock_in_long), label: 'Clock In', color: '#16a34a' },
+                                    ...(d.attendance.clock_out_lat && d.attendance.clock_out_long
+                                        ? [{ lat: Number(d.attendance.clock_out_lat), lng: Number(d.attendance.clock_out_long), label: 'Clock Out', color: '#2563eb' }]
+                                        : []),
+                                ]"
+                                :branch="branch && branch.latitude != null ? { lat: Number(branch.latitude), lng: Number(branch.longitude), radius: branch.radius_meters || 50, name: branch.branch_name } : null"
+                                height-class="h-40"
+                            />
                             <div
                                 v-if="d.attendance.notes"
                                 class="col-span-2 rounded-lg bg-white p-2.5 text-[11px] text-gray-600 dark:bg-zinc-900"
@@ -1772,6 +1797,7 @@ const resetEmployeeFace = (employeeId?: number) => {
             :shifts="shifts"
             :employee-face-url="employee?.face_photo_url"
             :employee-name="employee?.full_name"
+            :attendance-type="employee?.attendance_type"
             @success="isAttendanceModalOpen = false"
         />
 
@@ -2125,6 +2151,21 @@ const resetEmployeeFace = (employeeId?: number) => {
                                         </button>
                                     </div>
                                 </div>
+
+                                <!-- Peta lokasi absen -->
+                                <LocationMap
+                                    v-if="selectedDetailRecord?.clock_in_lat && selectedDetailRecord?.clock_in_long"
+                                    :points="[
+                                        { lat: Number(selectedDetailRecord.clock_in_lat), lng: Number(selectedDetailRecord.clock_in_long), label: 'Clock In', color: '#16a34a' },
+                                        ...(selectedDetailRecord.clock_out_lat && selectedDetailRecord.clock_out_long
+                                            ? [{ lat: Number(selectedDetailRecord.clock_out_lat), lng: Number(selectedDetailRecord.clock_out_long), label: 'Clock Out', color: '#2563eb' }]
+                                            : []),
+                                    ]"
+                                    :branch="selectedDetailRecord.branch && selectedDetailRecord.branch.latitude != null
+                                        ? { lat: Number(selectedDetailRecord.branch.latitude), lng: Number(selectedDetailRecord.branch.longitude), radius: selectedDetailRecord.branch.radius_meters || 50, name: selectedDetailRecord.branch.branch_name }
+                                        : null"
+                                    height-class="h-52"
+                                />
 
                                 <!-- Notes if any -->
                                 <div v-if="selectedDetailRecord?.notes" class="text-[11px] text-gray-600 dark:text-gray-400">

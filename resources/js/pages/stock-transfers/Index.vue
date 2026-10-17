@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Head, router, useForm } from '@inertiajs/vue3';
 import { ArrowRight, Plus } from '@lucide/vue';
-import { ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import InputError from '@/components/InputError.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { formatMixed } from '@/lib/units';
+import type { UnitOption } from '@/lib/units';
 
 interface Transfer {
     id: number;
@@ -20,7 +22,7 @@ interface Transfer {
     to_branch_id: number;
     from_branch: { branch_name: string };
     to_branch: { branch_name: string };
-    item: { name: string; unit: string };
+    item: { name: string; unit: string; unit_options: UnitOption[] };
     sent_by: { name: string } | null;
     received_by: { name: string } | null;
 }
@@ -30,7 +32,7 @@ const props = defineProps<{
     canSend: boolean;
     transfers: Transfer[];
     branches: Array<{ id: number; branch_name: string }>;
-    items: Array<{ id: number; name: string; unit: string }>;
+    items: Array<{ id: number; name: string; unit: string; unit_options: UnitOption[]; default_out_unit_id: number | null }>;
 }>();
 
 const statusMap: Record<string, { label: string; cls: string }> = {
@@ -40,7 +42,18 @@ const statusMap: Record<string, { label: string; cls: string }> = {
 };
 
 const isOpen = ref(false);
-const form = useForm({ to_branch_id: '' as number | '', item_id: '' as number | '', qty: '' as number | '', note: '' });
+const form = useForm({
+    to_branch_id: '' as number | '',
+    item_id: '' as number | '',
+    qty: '' as number | '',
+    unit_id: '' as number | '',
+    note: '',
+});
+
+const selectedItem = computed(() => props.items.find((i) => i.id === form.item_id) ?? null);
+watch(() => form.item_id, () => (form.unit_id = selectedItem.value?.default_out_unit_id ?? ''));
+
+const qtyText = (t: Transfer): string => formatMixed(Number(t.qty), t.item.unit_options);
 const selectCls = 'h-9 w-full rounded-md border border-gray-200 bg-white px-3 text-sm dark:border-zinc-700 dark:bg-zinc-900';
 
 const submit = () =>
@@ -52,7 +65,7 @@ const submit = () =>
         },
     });
 
-const receive = (t: Transfer) => confirm(`Terima ${Number(t.qty)} ${t.item.unit} ${t.item.name}?`) && router.post(`/stock-transfers/${t.id}/receive`, {}, { preserveScroll: true });
+const receive = (t: Transfer) => confirm(`Terima ${qtyText(t)} ${t.item.name}?`) && router.post(`/stock-transfers/${t.id}/receive`, {}, { preserveScroll: true });
 const cancel = (t: Transfer) => confirm('Batalkan transfer? Stok dikembalikan ke cabang asal.') && router.post(`/stock-transfers/${t.id}/cancel`, {}, { preserveScroll: true });
 </script>
 
@@ -78,7 +91,7 @@ const cancel = (t: Transfer) => confirm('Batalkan transfer? Stok dikembalikan ke
                                 {{ t.from_branch.branch_name }} <ArrowRight class="size-4 text-gray-400" /> {{ t.to_branch.branch_name }}
                             </div>
                             <div class="text-xs text-gray-500">
-                                {{ Number(t.qty) }} {{ t.item.unit }} {{ t.item.name }} · {{ t.sent_at.slice(0, 10).split('-').reverse().join('/') }}
+                                {{ qtyText(t) }} {{ t.item.name }} · {{ t.sent_at.slice(0, 10).split('-').reverse().join('/') }}
                                 · oleh {{ t.sent_by?.name }}<span v-if="t.note"> · {{ t.note }}</span>
                             </div>
                         </div>
@@ -110,13 +123,18 @@ const cancel = (t: Transfer) => confirm('Batalkan transfer? Stok dikembalikan ke
                         <Label>Barang</Label>
                         <select v-model="form.item_id" :class="selectCls">
                             <option value="">Pilih barang...</option>
-                            <option v-for="i in items" :key="i.id" :value="i.id">{{ i.name }} ({{ i.unit }})</option>
+                            <option v-for="i in items" :key="i.id" :value="i.id">{{ i.name }}</option>
                         </select>
                         <InputError :message="form.errors.item_id" />
                     </div>
                     <div class="space-y-1.5">
                         <Label>Jumlah</Label>
-                        <Input v-model="form.qty" type="number" min="0" step="0.01" />
+                        <div class="flex gap-2">
+                            <Input v-model="form.qty" type="number" min="0" step="0.01" />
+                            <select v-model="form.unit_id" :class="selectCls" class="w-32" :disabled="!selectedItem">
+                                <option v-for="u in [...(selectedItem?.unit_options ?? [])].reverse()" :key="u.unit_id" :value="u.unit_id">{{ u.name }}</option>
+                            </select>
+                        </div>
                         <InputError :message="form.errors.qty" />
                     </div>
                     <div class="space-y-1.5">

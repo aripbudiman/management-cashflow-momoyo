@@ -284,25 +284,13 @@ class AttendanceController extends Controller
         ]);
 
         $branch = $employee->currentBranch;
-        if (! $branch) {
-            return back()->with('error', 'Anda belum terdaftar pada cabang aktif. Hubungi Admin Pusat.');
+
+        // 4. Validasi lokasi: tipe radius wajib di area cabang, tipe fleksibel bebas (lokasi tetap dicatat)
+        $location = $this->evaluateLocation($employee, $request, '');
+        if ($location['error']) {
+            return back()->with('error', $location['error']);
         }
-
-        // 4. Validasi Geofencing Jarak ke Cabang
-        $distance = $this->calculateDistance(
-            (float) $request->input('latitude'),
-            (float) $request->input('longitude'),
-            (float) $branch->latitude,
-            (float) $branch->longitude
-        );
-
-        $allowedRadius = (int) ($branch->radius_meters ?: 50);
-
-        if ($distance > $allowedRadius) {
-            $formattedDist = round($distance, 1);
-
-            return back()->with('error', "Lokasi di luar radius gerai! Jarak Anda saat ini {$formattedDist} meter dari {$branch->branch_name} (Maksimal toleransi {$allowedRadius} meter). Pastikan Anda berada di gerai.");
-        }
+        $distance = $location['distance'];
 
         // 5. Validasi Keberadaan Wajah Manusia (Tolak jika memotret barang/objek lain)
         $faceCheck = $this->verifyHumanFacePresence($request->input('photo'));
@@ -346,7 +334,7 @@ class AttendanceController extends Controller
             $shift->late_tolerance_minutes = $schedule->late_tolerance_minutes;
         } else {
             $shiftId = $request->input('shift_id');
-            $shift = $shiftId ? Shift::find($shiftId) : Shift::where('branch_id', $branch->id)->first();
+            $shift = $shiftId ? Shift::find($shiftId) : ($branch ? Shift::where('branch_id', $branch->id)->first() : null);
         }
 
         $status = 'hadir_tepat_waktu';
@@ -363,20 +351,21 @@ class AttendanceController extends Controller
         }
 
         // 9. Simpan Record Absensi
-        DB::transaction(function () use ($employee, $branch, $shift, $today, $currentTime, $photoPath, $request, $distance, $status, $similarity) {
+        DB::transaction(function () use ($employee, $branch, $shift, $today, $currentTime, $photoPath, $request, $distance, $status, $similarity, $location) {
             Attendance::updateOrCreate(
                 [
                     'employee_id' => $employee->id,
                     'date' => $today,
                 ],
                 [
-                    'branch_id' => $branch->id,
+                    'branch_id' => $branch?->id,
+                    'location_mode' => $location['mode'],
                     'shift_id' => $shift?->id,
                     'clock_in_time' => $currentTime->format('H:i:s'),
                     'clock_in_photo_url' => $photoPath,
                     'clock_in_lat' => (float) $request->input('latitude'),
                     'clock_in_long' => (float) $request->input('longitude'),
-                    'clock_in_distance_meters' => round($distance, 1),
+                    'clock_in_distance_meters' => $distance !== null ? round($distance, 1) : null,
                     'clock_in_face_match_percentage' => $similarity,
                     'is_face_mismatch' => false,
                     'status' => $status,
@@ -430,26 +419,12 @@ class AttendanceController extends Controller
             'photo.required' => 'Foto selfie kepulangan wajib diambil.',
         ]);
 
-        $branch = $employee->currentBranch;
-        if (! $branch) {
-            return back()->with('error', 'Cabang tidak valid.');
+        // 4. Validasi lokasi (sesuai tipe absensi karyawan)
+        $location = $this->evaluateLocation($employee, $request, ' saat clock out');
+        if ($location['error']) {
+            return back()->with('error', $location['error']);
         }
-
-        // 4. Validasi Geofencing Jarak ke Cabang
-        $distance = $this->calculateDistance(
-            (float) $request->input('latitude'),
-            (float) $request->input('longitude'),
-            (float) $branch->latitude,
-            (float) $branch->longitude
-        );
-
-        $allowedRadius = (int) ($branch->radius_meters ?: 50);
-
-        if ($distance > $allowedRadius) {
-            $formattedDist = round($distance, 1);
-
-            return back()->with('error', "Lokasi di luar radius gerai! Jarak Anda saat ini {$formattedDist} meter dari {$branch->branch_name} (Maksimal toleransi {$allowedRadius} meter). Pastikan Anda berada di gerai saat clock out.");
-        }
+        $distance = $location['distance'];
 
         // 5. Validasi Keberadaan Wajah Manusia (Tolak jika memotret barang/objek lain)
         $faceCheck = $this->verifyHumanFacePresence($request->input('photo'));
@@ -492,13 +467,52 @@ class AttendanceController extends Controller
             'clock_out_photo_url' => $photoPath,
             'clock_out_lat' => (float) $request->input('latitude'),
             'clock_out_long' => (float) $request->input('longitude'),
-            'clock_out_distance_meters' => round($distance, 1),
+            'clock_out_distance_meters' => $distance !== null ? round($distance, 1) : null,
             'clock_out_face_match_percentage' => $similarity,
             'is_face_mismatch' => false,
             'notes' => $notes,
         ]);
 
         return back()->with('success', "Clock Out berhasil pada {$currentTime->format('H:i')} WIB! Terima kasih atas kerja keras Anda.");
+    }
+
+    /**
+     * Evaluasi lokasi absen berdasarkan tipe absensi karyawan.
+     * - radius: wajib berada di dalam radius cabang
+     * - flexible: bisa di mana saja, koordinat tetap dicatat (jarak ke cabang hanya informasi)
+     *
+     * @return array{error: ?string, distance: ?float, mode: string}
+     */
+    private function evaluateLocation(Employee $employee, Request $request, string $context): array
+    {
+        $branch = $employee->currentBranch;
+        $mode = $employee->isFlexibleAttendance() ? 'flexible' : 'radius';
+
+        $distance = $branch && $branch->latitude !== null && $branch->longitude !== null
+            ? $this->calculateDistance(
+                (float) $request->input('latitude'),
+                (float) $request->input('longitude'),
+                (float) $branch->latitude,
+                (float) $branch->longitude
+            )
+            : null;
+
+        if ($mode === 'flexible') {
+            return ['error' => null, 'distance' => $distance, 'mode' => $mode];
+        }
+
+        if (! $branch || $distance === null) {
+            return ['error' => 'Anda belum terdaftar pada cabang aktif. Hubungi Admin Pusat.', 'distance' => null, 'mode' => $mode];
+        }
+
+        $allowedRadius = (int) ($branch->radius_meters ?: 50);
+        if ($distance > $allowedRadius) {
+            $formattedDist = round($distance, 1);
+
+            return ['error' => "Lokasi di luar radius gerai! Jarak Anda saat ini {$formattedDist} meter dari {$branch->branch_name} (Maksimal toleransi {$allowedRadius} meter). Pastikan Anda berada di gerai{$context}.", 'distance' => $distance, 'mode' => $mode];
+        }
+
+        return ['error' => null, 'distance' => $distance, 'mode' => $mode];
     }
 
     /**

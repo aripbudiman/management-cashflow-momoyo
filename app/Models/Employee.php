@@ -25,6 +25,7 @@ class Employee extends Model
         'bank_account_name',
         'current_branch_id',
         'status',
+        'attendance_type',
         'face_id',
         'face_photo_path',
         'face_registered_at',
@@ -43,6 +44,11 @@ class Employee extends Model
             'face_registered_at' => 'datetime',
             'face_data' => 'array',
         ];
+    }
+
+    public function isFlexibleAttendance(): bool
+    {
+        return $this->attendance_type === 'flexible';
     }
 
     public function hasFaceRegistered(): bool

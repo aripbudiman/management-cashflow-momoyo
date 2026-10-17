@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { fmtDate } from '@/lib/format';
+import { formatMixed } from '@/lib/units';
+import type { UnitOption } from '@/lib/units';
 
 interface Report {
     id: number;
@@ -27,7 +29,7 @@ interface Report {
         expected_qty: string;
         physical_qty: string | null;
         diff_qty: string;
-        item: { name: string; unit: string };
+        item: { name: string; unit: string; unit_options: UnitOption[] };
     }>;
 }
 
@@ -52,6 +54,8 @@ const selectCls = 'h-9 rounded-md border border-gray-200 bg-white px-3 text-sm d
 const detail = ref<Report | null>(null);
 const revising = ref(false);
 const notes = ref('');
+
+const q = (i: Report['items'][number], base: string): string => formatMixed(Number(base), i.item.unit_options);
 
 const diffCount = (r: Report) => r.items.filter((i) => Number(i.diff_qty) !== 0).length;
 
@@ -148,14 +152,14 @@ const revise = () => {
                             </thead>
                             <tbody class="divide-y">
                                 <tr v-for="i in detail.items" :key="i.id">
-                                    <td class="p-2">{{ i.item.name }} <span class="text-xs text-gray-400">({{ i.item.unit }})</span></td>
-                                    <td class="p-2 text-right font-mono">{{ Number(i.opening_qty) }}</td>
-                                    <td class="p-2 text-right font-mono">{{ Number(i.in_qty) }}</td>
-                                    <td class="p-2 text-right font-mono">{{ Number(i.out_qty) }}</td>
-                                    <td class="p-2 text-right font-mono">{{ Number(i.waste_qty) }}</td>
-                                    <td class="p-2 text-right font-mono">{{ i.physical_qty === null ? '-' : Number(i.physical_qty) }}</td>
-                                    <td class="p-2 text-right font-mono font-bold" :class="Number(i.diff_qty) ? 'text-red-600' : 'text-gray-400'">
-                                        {{ Number(i.diff_qty) }}
+                                    <td class="p-2">{{ i.item.name }}</td>
+                                    <td class="p-2 text-right text-xs">{{ q(i, i.opening_qty) }}</td>
+                                    <td class="p-2 text-right text-xs">{{ q(i, i.in_qty) }}</td>
+                                    <td class="p-2 text-right text-xs">{{ q(i, i.out_qty) }}</td>
+                                    <td class="p-2 text-right text-xs">{{ q(i, i.waste_qty) }}</td>
+                                    <td class="p-2 text-right text-xs">{{ i.physical_qty === null ? '-' : q(i, i.physical_qty) }}</td>
+                                    <td class="p-2 text-right text-xs font-bold" :class="Number(i.diff_qty) ? 'text-red-600' : 'text-gray-400'">
+                                        {{ q(i, i.diff_qty) }}
                                     </td>
                                 </tr>
                             </tbody>

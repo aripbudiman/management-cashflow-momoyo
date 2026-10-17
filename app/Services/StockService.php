@@ -51,14 +51,15 @@ class StockService
                 'verified_at' => null,
             ])->save();
 
-            $items = Item::whereIn('id', collect($data['items'])->pluck('item_id'))->get()->keyBy('id');
+            $items = Item::with('itemUnits.unit')->whereIn('id', collect($data['items'])->pluck('item_id'))->get()->keyBy('id');
 
             foreach ($data['items'] as $line) {
                 $item = $items->get((int) $line['item_id']);
-                $in = round((float) ($line['in_qty'] ?? 0), 2);
-                $out = round((float) ($line['out_qty'] ?? 0), 2);
-                $waste = round((float) ($line['waste_qty'] ?? 0), 2);
-                $physical = isset($line['physical_qty']) && $line['physical_qty'] !== '' ? round((float) $line['physical_qty'], 2) : null;
+                $inputs = [];
+                $in = $this->toBase($item, $line, 'in', $inputs) ?? 0.0;
+                $out = $this->toBase($item, $line, 'out', $inputs) ?? 0.0;
+                $waste = $this->toBase($item, $line, 'waste', $inputs) ?? 0.0;
+                $physical = $this->toBase($item, $line, 'physical', $inputs);
 
                 if ($in == 0.0 && $out == 0.0 && $waste == 0.0 && $physical === null) {
                     continue;
@@ -76,7 +77,7 @@ class StockService
 
                 $report->items()->create([
                     'item_id' => $item->id,
-                    'unit_price' => $item->price,
+                    'unit_price' => $item->basePrice(),
                     'opening_qty' => $opening,
                     'in_qty' => $in,
                     'out_qty' => $out,
@@ -84,13 +85,14 @@ class StockService
                     'expected_qty' => $expected,
                     'physical_qty' => $physical,
                     'diff_qty' => $diff,
+                    'inputs' => $inputs ?: null,
                     'note' => $line['note'] ?? null,
                 ]);
 
                 $movements = [['in', $in], ['out', -$out], ['waste', -$waste], ['adjustment', $diff]];
                 foreach ($movements as [$type, $qty]) {
                     if ($qty != 0.0) {
-                        $this->record($stock, $type, $qty, $user, $data['report_date'], $item->price, $report->id);
+                        $this->record($stock, $type, $qty, $user, $data['report_date'], $item->basePrice(), $report->id);
                     }
                 }
             }
@@ -119,8 +121,8 @@ class StockService
     public function sendTransfer(User $user, Branch $from, array $data): StockTransfer
     {
         return DB::transaction(function () use ($user, $from, $data) {
-            $item = Item::findOrFail($data['item_id']);
-            $qty = round((float) $data['qty'], 2);
+            $item = Item::with('itemUnits.unit')->findOrFail($data['item_id']);
+            $qty = $this->toBase($item, ['qty' => $data['qty'], 'unit_id' => $data['unit_id'] ?? null], null) ?? 0.0;
 
             $stock = $this->lockStock($from->id, $item->id);
             if ((float) $stock->qty < $qty) {
@@ -138,7 +140,7 @@ class StockService
                 'note' => $data['note'] ?? null,
             ]);
 
-            $this->record($stock, 'transfer_out', -$qty, $user, today()->toDateString(), $item->price, null, $transfer->id, $data['note'] ?? null);
+            $this->record($stock, 'transfer_out', -$qty, $user, today()->toDateString(), $item->basePrice(), null, $transfer->id, $data['note'] ?? null);
 
             return $transfer;
         });
@@ -151,7 +153,7 @@ class StockService
             $this->ensureSent($transfer);
 
             $stock = $this->lockStock($transfer->to_branch_id, $transfer->item_id);
-            $this->record($stock, 'transfer_in', (float) $transfer->qty, $user, today()->toDateString(), $transfer->item->price, null, $transfer->id, $transfer->note);
+            $this->record($stock, 'transfer_in', (float) $transfer->qty, $user, today()->toDateString(), $transfer->item->basePrice(), null, $transfer->id, $transfer->note);
 
             $transfer->update(['status' => 'received', 'received_by' => $user->id, 'received_at' => now()]);
         });
@@ -164,10 +166,41 @@ class StockService
             $this->ensureSent($transfer);
 
             $stock = $this->lockStock($transfer->from_branch_id, $transfer->item_id);
-            $this->record($stock, 'transfer_in', (float) $transfer->qty, $user, today()->toDateString(), $transfer->item->price, null, $transfer->id, 'Transfer dibatalkan, stok dikembalikan');
+            $this->record($stock, 'transfer_in', (float) $transfer->qty, $user, today()->toDateString(), $transfer->item->basePrice(), null, $transfer->id, 'Transfer dibatalkan, stok dikembalikan');
 
             $transfer->update(['status' => 'cancelled']);
         });
+    }
+
+    /**
+     * Konversi input (qty + satuan) ke satuan terkecil. Kolom laporan memakai pasangan "{kolom}_qty"/"{kolom}_unit_id";
+     * transfer memakai "qty"/"unit_id" (kolom = null). Input asli dicatat ke $inputs untuk ditampilkan ulang.
+     *
+     * @param  array<string, mixed>  $line
+     * @param  array<string, array{qty: float, unit_id: ?int}>  $inputs
+     */
+    private function toBase(Item $item, array $line, ?string $column, array &$inputs = []): ?float
+    {
+        $qtyKey = $column ? "{$column}_qty" : 'qty';
+        $unitKey = $column ? "{$column}_unit_id" : 'unit_id';
+
+        if (! isset($line[$qtyKey]) || $line[$qtyKey] === '') {
+            return null;
+        }
+
+        $unitId = isset($line[$unitKey]) && $line[$unitKey] !== '' ? (int) $line[$unitKey] : null;
+        $factor = $item->factorFor($unitId);
+
+        if ($factor === null) {
+            throw ValidationException::withMessages(['items' => "Satuan tidak valid untuk {$item->name}."]);
+        }
+
+        $qty = round((float) $line[$qtyKey], 2);
+        if ($column) {
+            $inputs[$column] = ['qty' => $qty, 'unit_id' => $unitId ?? $item->baseUnitId()];
+        }
+
+        return round($qty * $factor, 2);
     }
 
     private function reverseReportMovements(StockReport $report): void

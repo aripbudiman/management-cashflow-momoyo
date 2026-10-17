@@ -21,7 +21,7 @@ import FaceRegistrationModal from '@/components/FaceRegistrationModal.vue';
 import { rupiah } from '@/lib/format';
 
 interface Props {
-    employee: { id: number; full_name: string; nik: string; face_photo_url: string | null; is_face_registered: boolean };
+    employee: { id: number; full_name: string; nik: string; face_photo_url: string | null; is_face_registered: boolean; attendance_type: 'radius' | 'flexible' };
     branch: { id: number; branch_name: string; branch_code: string; latitude: number; longitude: number; radius_meters: number } | null;
     shifts: Array<{ id: number; shift_name: string; start_time: string; end_time: string; late_tolerance_minutes: number }>;
     todayAttendance: { clock_in_time: string | null; clock_out_time: string | null; status: string } | null;
@@ -249,6 +249,7 @@ const menus = [
             :shifts="shifts"
             :employee-face-url="employee.face_photo_url"
             :employee-name="employee.full_name"
+            :attendance-type="employee.attendance_type"
             @success="onAttendanceSuccess"
         />
     </div>

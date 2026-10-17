@@ -86,6 +86,7 @@ const props = defineProps<{
         face_photo_path: string | null;
         face_photo_url: string | null;
         is_face_registered: boolean;
+        attendance_type?: 'radius' | 'flexible';
     } | null;
     userAttendance?: {
         id: number;
@@ -1383,6 +1384,7 @@ const closePreview = () => {
         :mode="attendanceModalMode"
         :branch="userBranch"
         :shifts="branchShifts"
+        :attendance-type="userEmployee?.attendance_type"
         @success="isAttendanceModalOpen = false"
     />
 </template>

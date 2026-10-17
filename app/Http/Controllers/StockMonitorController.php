@@ -26,6 +26,8 @@ class StockMonitorController extends Controller
                 'id' => $i->id,
                 'name' => $i->name,
                 'unit' => $i->unit,
+                'unit_options' => $i->unit_options,
+                'default_unit_id' => $i->defaultInUnitId(),
                 'price' => $i->price,
                 'min_stock' => $i->min_stock,
                 'stocks' => $i->stocks,
@@ -48,7 +50,13 @@ class StockMonitorController extends Controller
 
         return Inertia::render('stock-monitor/Card', [
             'branches' => $branches->map->only(['id', 'branch_name'])->values(),
-            'items' => Item::orderBy('name')->get(['id', 'name', 'unit']),
+            'items' => Item::with('itemUnits.unit')->orderBy('name')->get()->map(fn (Item $i) => [
+                'id' => $i->id,
+                'name' => $i->name,
+                'unit' => $i->unit,
+                'unit_options' => $i->unit_options,
+                'default_unit_id' => $i->defaultInUnitId(),
+            ])->values(),
             'filters' => ['branch_id' => $branchId, 'item_id' => $itemId ?: null, 'from' => $from, 'to' => $to],
             'types' => StockMovement::TYPES,
             'opening' => $card['opening'] ?? 0,

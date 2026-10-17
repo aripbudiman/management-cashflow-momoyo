@@ -29,6 +29,7 @@ abstract class EmployeeRequest extends FormRequest
             'bank_account_name' => ['nullable', 'string', 'max:150'],
             'current_branch_id' => ['required', 'exists:branches,id'],
             'status' => ['required', 'in:active,inactive,probation'],
+            'attendance_type' => ['nullable', 'in:radius,flexible'],
             'username' => ['nullable', 'string', 'max:50'],
             'role_id' => ['required', 'exists:roles,id'],
         ];
@@ -61,8 +62,9 @@ abstract class EmployeeRequest extends FormRequest
         $data = $this->safe()->only([
             'birth_place', 'birth_date', 'address', 'phone_number',
             'bank_name', 'bank_account_number', 'bank_account_name',
-            'current_branch_id', 'status',
+            'current_branch_id', 'status', 'attendance_type',
         ]);
+        $data['attendance_type'] ??= 'radius';
 
         // Nama pemilik rekening default ke nama karyawan jika bank diisi tapi atas nama kosong
         if (! empty($data['bank_name']) && empty($data['bank_account_name'])) {

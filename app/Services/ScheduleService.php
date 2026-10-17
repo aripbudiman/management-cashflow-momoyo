@@ -176,6 +176,11 @@ class ScheduleService
                     'clock_in_distance_meters' => $attendance->clock_in_distance_meters,
                     'clock_out_distance_meters' => $attendance->clock_out_distance_meters,
                     'notes' => $attendance->notes,
+                    'location_mode' => $attendance->location_mode,
+                    'clock_in_lat' => $attendance->clock_in_lat,
+                    'clock_in_long' => $attendance->clock_in_long,
+                    'clock_out_lat' => $attendance->clock_out_lat,
+                    'clock_out_long' => $attendance->clock_out_long,
                 ] : null,
             ];
         }

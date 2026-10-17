@@ -23,7 +23,7 @@ import {
     X,
     XCircle,
 } from '@lucide/vue';
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import InputError from '@/components/InputError.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -56,6 +56,7 @@ const props = defineProps<{
             nik: string;
             full_name: string;
             phone_number: string | null;
+            attendance_type?: 'radius' | 'flexible';
             birth_place: string | null;
             birth_date: string | null;
             address: string | null;
@@ -165,6 +166,7 @@ const form = useForm({
     bank_account_name: '',
     current_branch_id: props.branches[0]?.id || '',
     status: 'active',
+    attendance_type: 'radius',
     // Login User Info
     email: '',
     username: '',
@@ -176,6 +178,16 @@ const form = useForm({
 });
 
 const bankOptions = ['Bank Mandiri', 'BCA', 'BRI', 'BNI', 'BSI', 'CIMB Niaga', 'Bank Permata', 'Bank Danamon', 'BTN', 'Jago', 'SeaBank'];
+
+// Saat membuat karyawan baru dengan role Admin Pusat, tipe absensi default Fleksibel
+watch(
+    () => form.role_id,
+    (id) => {
+        if (isEditing.value) return;
+        const role = props.roles.find((r) => r.id === id);
+        form.attendance_type = role?.name === 'admin_pusat' ? 'flexible' : 'radius';
+    },
+);
 
 // Auto-generate suggestion email & username saat mengetik nama
 const handleNameInput = () => {
@@ -224,6 +236,7 @@ const openEditModal = (emp: (typeof props.employees.data)[number]) => {
     form.bank_account_name = emp.bank_account_name || '';
     form.current_branch_id = emp.current_branch_id;
     form.status = emp.status;
+    form.attendance_type = emp.attendance_type || 'radius';
 
     form.email = emp.user?.email || '';
     form.username = emp.user?.username || '';
@@ -909,6 +922,26 @@ const getStatusBadge = (status: string) => {
                                 </option>
                             </select>
                             <InputError :message="form.errors.status" />
+                        </div>
+
+                        <!-- Tipe Absensi -->
+                        <div class="space-y-1.5 sm:col-span-2">
+                            <Label for="attendance_type" class="text-xs font-semibold">
+                                Tipe Absensi
+                                <span class="text-rose-500">*</span>
+                            </Label>
+                            <select
+                                id="attendance_type"
+                                v-model="form.attendance_type"
+                                class="h-10 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs text-gray-700 focus:ring-2 focus:ring-rose-500 focus:outline-none dark:border-zinc-800 dark:bg-zinc-900 dark:text-gray-300"
+                            >
+                                <option value="radius">Radius Cabang (wajib absen di area gerai)</option>
+                                <option value="flexible">Fleksibel (bisa absen di mana saja)</option>
+                            </select>
+                            <p class="text-[10px] text-muted-foreground">
+                                Fleksibel cocok untuk Admin Pusat atau karyawan lapangan. Titik lokasi (lat/long) tetap dicatat dan bisa dilihat di peta.
+                            </p>
+                            <InputError :message="form.errors.attendance_type" />
                         </div>
                     </div>
                 </div>

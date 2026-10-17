@@ -30,7 +30,13 @@ class StockTransferController extends Controller
             'canSend' => ! $isAdmin && $branch !== null,
             'transfers' => $this->stocks->transfers($isAdmin ? null : $branch?->id),
             'branches' => Branch::where('is_active', true)->when($branch, fn ($q) => $q->where('id', '!=', $branch->id))->orderBy('branch_name')->get(['id', 'branch_name']),
-            'items' => Item::where('is_active', true)->orderBy('name')->get(['id', 'name', 'unit']),
+            'items' => Item::where('is_active', true)->with('itemUnits.unit')->orderBy('name')->get()->map(fn (Item $i) => [
+                'id' => $i->id,
+                'name' => $i->name,
+                'unit' => $i->unit,
+                'unit_options' => $i->unit_options,
+                'default_out_unit_id' => $i->defaultOutUnitId(),
+            ])->values(),
         ]);
     }
 

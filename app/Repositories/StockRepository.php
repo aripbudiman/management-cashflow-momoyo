@@ -12,7 +12,7 @@ use Illuminate\Support\Collection;
 
 class StockRepository
 {
-    private const REPORT_RELATIONS = ['branch:id,branch_name,branch_code', 'submittedBy:id,name', 'verifiedBy:id,name', 'items.item:id,name,unit'];
+    private const REPORT_RELATIONS = ['branch:id,branch_name,branch_code', 'submittedBy:id,name', 'verifiedBy:id,name', 'items.item.itemUnits.unit'];
 
     /**
      * Barang aktif beserta stok saat ini di satu cabang.
@@ -23,7 +23,7 @@ class StockRepository
     {
         return Item::query()
             ->where('is_active', true)
-            ->with(['branchStocks' => fn ($q) => $q->where('branch_id', $branchId)])
+            ->with(['itemUnits.unit', 'branchStocks' => fn ($q) => $q->where('branch_id', $branchId)])
             ->orderBy('name')
             ->get()
             ->each(fn (Item $item) => $item->setAttribute('stock_qty', $item->branchStocks->first()?->qty ?? '0.00'));
@@ -74,7 +74,7 @@ class StockRepository
         return Item::query()
             ->where('is_active', true)
             ->when($search, fn ($q, $v) => $q->where('name', 'ilike', "%{$v}%"))
-            ->with(['branchStocks' => fn ($q) => $q->whereIn('branch_id', $branches->pluck('id'))])
+            ->with(['itemUnits.unit', 'branchStocks' => fn ($q) => $q->whereIn('branch_id', $branches->pluck('id'))])
             ->orderBy('name')
             ->get()
             ->each(fn (Item $item) => $item->setAttribute('stocks', $item->branchStocks->pluck('qty', 'branch_id')));
@@ -108,7 +108,7 @@ class StockRepository
      */
     public function transfers(?int $branchId, int $limit = 30): Collection
     {
-        return StockTransfer::with(['fromBranch:id,branch_name', 'toBranch:id,branch_name', 'item:id,name,unit', 'sentBy:id,name', 'receivedBy:id,name'])
+        return StockTransfer::with(['fromBranch:id,branch_name', 'toBranch:id,branch_name', 'item.itemUnits.unit', 'sentBy:id,name', 'receivedBy:id,name'])
             ->when($branchId, fn ($q, $v) => $q->where(fn ($w) => $w->where('from_branch_id', $v)->orWhere('to_branch_id', $v)))
             ->latest('sent_at')
             ->limit($limit)

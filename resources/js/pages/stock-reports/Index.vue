@@ -7,13 +7,21 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { fmtDate } from '@/lib/format';
+import { factorOf, formatMixed } from '@/lib/units';
+import type { UnitOption } from '@/lib/units';
 
 interface ItemRow {
     id: number;
     name: string;
     unit: string;
+    unit_options: UnitOption[];
+    default_in_unit_id: number | null;
+    default_out_unit_id: number | null;
     stock_qty: string;
 }
+
+type Column = 'in' | 'out' | 'waste' | 'physical';
+type Inputs = Partial<Record<Column, { qty: number; unit_id: number | null }>>;
 
 interface ReportItem {
     item_id: number;
@@ -22,6 +30,7 @@ interface ReportItem {
     out_qty: string;
     waste_qty: string;
     physical_qty: string | null;
+    inputs: Inputs | null;
     note: string | null;
 }
 
@@ -42,18 +51,19 @@ const statusMap: Record<string, { label: string; cls: string }> = {
 
 const locked = computed(() => props.report?.status === 'verified');
 
+// Kolom masuk memakai satuan default masuk; keluar/rusak/fisik memakai satuan default keluar.
+// Laporan yang sudah tersimpan menampilkan input asli staff (misal "1 karton"), bukan angka satuan terkecil.
 const buildLines = () => {
     const saved = new Map((props.report?.items ?? []).map((r) => [r.item_id, r]));
     return props.items.map((i) => {
         const r = saved.get(i.id);
-        return {
-            item_id: i.id,
-            in_qty: r ? Number(r.in_qty) || '' : '',
-            out_qty: r ? Number(r.out_qty) || '' : '',
-            waste_qty: r ? Number(r.waste_qty) || '' : '',
-            physical_qty: r?.physical_qty != null ? Number(r.physical_qty) : '',
-            note: r?.note ?? '',
-        };
+        const line: Record<string, number | string> = { item_id: i.id, note: r?.note ?? '' };
+        (['in', 'out', 'waste', 'physical'] as Column[]).forEach((c) => {
+            const input = r?.inputs?.[c];
+            line[`${c}_qty`] = input ? input.qty : '';
+            line[`${c}_unit_id`] = input?.unit_id ?? (c === 'in' ? i.default_in_unit_id : i.default_out_unit_id) ?? '';
+        });
+        return line;
     });
 };
 
@@ -75,21 +85,27 @@ const opening = (idx: number): number => {
     return saved ? Number(saved.opening_qty) : Number(props.items[idx].stock_qty);
 };
 
-const expected = (idx: number): number => {
+const toBase = (idx: number, c: Column): number => {
     const l = form.items[idx];
-    return opening(idx) + Number(l.in_qty || 0) - Number(l.out_qty || 0) - Number(l.waste_qty || 0);
+    return Number(l[`${c}_qty`] || 0) * factorOf(props.items[idx].unit_options, l[`${c}_unit_id`] as number | '');
 };
+
+const expected = (idx: number): number => opening(idx) + toBase(idx, 'in') - toBase(idx, 'out') - toBase(idx, 'waste');
 
 const diff = (idx: number): number | null => {
     const p = form.items[idx].physical_qty;
-    return p === '' || p === null ? null : Number(p) - expected(idx);
+    return p === '' || p === null ? null : toBase(idx, 'physical') - expected(idx);
 };
+
+const mixed = (idx: number, base: number): string => formatMixed(Math.round(base * 100) / 100, props.items[idx].unit_options);
 
 const changeDate = (e: Event) => router.get('/stock-reports', { date: (e.target as HTMLInputElement).value }, { preserveState: false });
 
 const submit = () => form.post('/stock-reports', { preserveScroll: true });
 
-const numCls = 'h-9 w-full min-w-16 rounded-md border border-gray-200 bg-white px-2 text-right text-sm dark:border-zinc-700 dark:bg-zinc-900';
+const cols: Column[] = ['in', 'out', 'waste'];
+const unitCls = 'h-9 rounded-md border border-gray-200 bg-white px-1 text-xs dark:border-zinc-700 dark:bg-zinc-900';
+const numCls = 'h-9 w-full min-w-14 rounded-md border border-gray-200 bg-white px-2 text-right text-sm dark:border-zinc-700 dark:bg-zinc-900';
 </script>
 
 <template>
@@ -144,20 +160,30 @@ const numCls = 'h-9 w-full min-w-16 rounded-md border border-gray-200 bg-white p
                             </thead>
                             <tbody class="divide-y">
                                 <tr v-for="(item, idx) in items" :key="item.id">
-                                    <td class="p-3 font-medium">
-                                        {{ item.name }} <span class="text-xs text-gray-400">({{ item.unit }})</span>
+                                    <td class="p-3 font-medium">{{ item.name }}</td>
+                                    <td class="p-3 text-right text-xs">{{ mixed(idx, opening(idx)) }}</td>
+                                    <td v-for="c in cols" :key="c" class="p-2">
+                                        <div class="flex min-w-36 items-center gap-1">
+                                            <input v-model="form.items[idx][`${c}_qty`]" type="number" min="0" step="0.01" :disabled="locked" :class="numCls" />
+                                            <select v-model="form.items[idx][`${c}_unit_id`]" :disabled="locked" :class="unitCls">
+                                                <option v-for="u in [...item.unit_options].reverse()" :key="u.unit_id" :value="u.unit_id">{{ u.name }}</option>
+                                            </select>
+                                        </div>
                                     </td>
-                                    <td class="p-3 text-right font-mono">{{ opening(idx) }}</td>
-                                    <td class="p-2"><input v-model="form.items[idx].in_qty" type="number" min="0" step="0.01" :disabled="locked" :class="numCls" /></td>
-                                    <td class="p-2"><input v-model="form.items[idx].out_qty" type="number" min="0" step="0.01" :disabled="locked" :class="numCls" /></td>
-                                    <td class="p-2"><input v-model="form.items[idx].waste_qty" type="number" min="0" step="0.01" :disabled="locked" :class="numCls" /></td>
-                                    <td class="p-3 text-right font-mono">{{ Math.round(expected(idx) * 100) / 100 }}</td>
-                                    <td class="p-2"><input v-model="form.items[idx].physical_qty" type="number" min="0" step="0.01" :disabled="locked" :class="numCls" /></td>
+                                    <td class="p-3 text-right text-xs">{{ mixed(idx, expected(idx)) }}</td>
+                                    <td class="p-2">
+                                        <div class="flex min-w-36 items-center gap-1">
+                                            <input v-model="form.items[idx].physical_qty" type="number" min="0" step="0.01" :disabled="locked" :class="numCls" />
+                                            <select v-model="form.items[idx].physical_unit_id" :disabled="locked" :class="unitCls">
+                                                <option v-for="u in [...item.unit_options].reverse()" :key="u.unit_id" :value="u.unit_id">{{ u.name }}</option>
+                                            </select>
+                                        </div>
+                                    </td>
                                     <td
-                                        class="p-3 text-right font-mono font-bold"
+                                        class="p-3 text-right text-xs font-bold"
                                         :class="diff(idx) === null ? 'text-gray-300' : diff(idx) === 0 ? 'text-emerald-600' : 'text-red-600'"
                                     >
-                                        {{ diff(idx) === null ? '-' : Math.round((diff(idx) ?? 0) * 100) / 100 }}
+                                        {{ diff(idx) === null ? '-' : mixed(idx, diff(idx) ?? 0) }}
                                     </td>
                                 </tr>
                             </tbody>
@@ -176,7 +202,7 @@ const numCls = 'h-9 w-full min-w-16 rounded-md border border-gray-200 bg-white p
                         />
                         <div class="flex items-center justify-between gap-3">
                             <p class="text-xs text-gray-500">
-                                Kosongkan kolom yang tidak berubah. Isi "Fisik" untuk opname: selisih otomatis jadi penyesuaian stok.
+                                Kosongkan kolom yang tidak berubah. Pilih satuan di samping angka (masuk biasanya karton, keluar per box). Isi "Fisik" untuk opname: selisih otomatis jadi penyesuaian stok.
                             </p>
                             <Button type="submit" :disabled="form.processing || locked || items.length === 0">Kirim ke Pusat</Button>
                         </div>

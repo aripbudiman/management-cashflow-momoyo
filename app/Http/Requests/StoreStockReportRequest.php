@@ -25,6 +25,10 @@ class StoreStockReportRequest extends FormRequest
             'items.*.out_qty' => ['nullable', 'numeric', 'min:0', 'max:9999999'],
             'items.*.waste_qty' => ['nullable', 'numeric', 'min:0', 'max:9999999'],
             'items.*.physical_qty' => ['nullable', 'numeric', 'min:0', 'max:9999999'],
+            'items.*.in_unit_id' => ['nullable', 'integer', 'exists:units,id'],
+            'items.*.out_unit_id' => ['nullable', 'integer', 'exists:units,id'],
+            'items.*.waste_unit_id' => ['nullable', 'integer', 'exists:units,id'],
+            'items.*.physical_unit_id' => ['nullable', 'integer', 'exists:units,id'],
             'items.*.note' => ['nullable', 'string', 'max:255'],
         ];
     }

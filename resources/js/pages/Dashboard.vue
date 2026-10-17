@@ -29,7 +29,9 @@ import {
     XCircle,
     ScanFace,
 } from '@lucide/vue';
+import { useMediaQuery } from '@vueuse/core';
 import { computed, onMounted, ref } from 'vue';
+import AdminMobileHome from '@/components/AdminMobileHome.vue';
 import AttendanceModal from '@/components/AttendanceModal.vue';
 import FaceRegistrationModal from '@/components/FaceRegistrationModal.vue';
 import { Badge } from '@/components/ui/badge';
@@ -169,6 +171,9 @@ const roleName = computed(
 );
 const isAdminPusat = computed(() => roleName.value === 'admin_pusat');
 const isStaffCabang = computed(() => roleName.value === 'staff_cabang');
+// Admin pusat di layar kecil: Beranda versi mobile
+const isMobile = useMediaQuery('(max-width: 767px)');
+const isMobileAdmin = computed(() => isAdminPusat.value && isMobile.value);
 const roleTitle = computed(
     () =>
         currentUser.value?.role?.display_name ||
@@ -259,7 +264,18 @@ const closePreview = () => {
 <template>
     <Head title="Beranda Operasional - Momoyo Multi-Cabang" />
 
-    <div class="flex-1 space-y-6 p-4 sm:p-6 lg:p-8">
+    <AdminMobileHome
+        v-if="isMobileAdmin"
+        :name="currentUser?.name ?? ''"
+        :date-label="todayDateFormatted"
+        :metrics="metrics"
+        :employee="userEmployee"
+        :attendance="userAttendance"
+        @punch="(m) => (m === 'clock_in' ? openClockIn() : openClockOut())"
+        @register-face="isFaceModalOpen = true"
+    />
+
+    <div v-if="!isMobileAdmin" class="flex-1 space-y-6 p-4 sm:p-6 lg:p-8">
         <!-- TOP BANNER: Brand & Profile Greeting with Quick Role Switcher -->
         <div
             class="relative overflow-hidden rounded-3xl bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 p-6 text-white shadow-xl shadow-rose-900/10 sm:p-8"

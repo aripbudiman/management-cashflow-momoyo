@@ -70,7 +70,6 @@ Route::middleware(['auth'])->group(function () {
     Route::middleware(['role:staff_cabang'])->group(function () {
         // Portal mobile staff: jadwal & profil
         Route::get('/my-schedule', [StaffPortalController::class, 'schedule'])->name('staff.schedule');
-        Route::get('/my-profile', [StaffPortalController::class, 'profile'])->name('staff.profile');
 
         Route::get('/cashflows', [DailyCashflowController::class, 'index'])->name('cashflows.index');
         Route::post('/cashflows', [DailyCashflowController::class, 'store'])->name('cashflows.store');
@@ -89,6 +88,11 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/stock-transfers', [StockTransferController::class, 'index'])->name('stock-transfers.index');
         Route::post('/stock-transfers/{transfer}/cancel', [StockTransferController::class, 'cancel'])->name('stock-transfers.cancel');
     });
+
+    // Profil & logout versi mobile (staff cabang & admin pusat)
+    Route::get('/my-profile', [StaffPortalController::class, 'profile'])
+        ->middleware('role:staff_cabang,admin_pusat')
+        ->name('staff.profile');
 
     // Pengajuan Izin, Sakit, Cuti (karyawan mengajukan, admin pusat memutuskan)
     Route::get('/leaves', [LeaveRequestController::class, 'index'])->name('leaves.index');

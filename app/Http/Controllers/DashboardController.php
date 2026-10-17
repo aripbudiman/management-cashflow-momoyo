@@ -7,8 +7,10 @@ use App\Models\Branch;
 use App\Models\CompanyBankAccount;
 use App\Models\DailyCashflow;
 use App\Models\Employee;
+use App\Models\LeaveRequest;
 use App\Models\SetoranTransfer;
 use App\Models\Shift;
+use App\Models\StockReport;
 use App\Services\StaffHomeService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -125,6 +127,8 @@ class DashboardController extends Controller
                 'total_net_cash_today' => (float) $totalNetCashToday,
                 'pending_transfers_count' => $pendingTransfersCount,
                 'pending_cashflows_count' => $pendingCashflowsCount,
+                'pending_leaves_count' => $roleName === 'admin_pusat' ? LeaveRequest::where('status', 'pending')->count() : 0,
+                'pending_stock_reports_count' => $roleName === 'admin_pusat' ? StockReport::where('status', 'submitted')->count() : 0,
                 'attendances_summary' => $attendancesSummary,
             ],
             'userBranch' => $userBranch,

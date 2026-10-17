@@ -16,7 +16,13 @@ class Employee extends Model
         'user_id',
         'nik',
         'full_name',
+        'birth_place',
+        'birth_date',
+        'address',
         'phone_number',
+        'bank_name',
+        'bank_account_number',
+        'bank_account_name',
         'current_branch_id',
         'status',
         'face_id',
@@ -33,6 +39,7 @@ class Employee extends Model
     protected function casts(): array
     {
         return [
+            'birth_date' => 'date:Y-m-d',
             'face_registered_at' => 'datetime',
             'face_data' => 'array',
         ];

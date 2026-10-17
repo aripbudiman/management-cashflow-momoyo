@@ -13,6 +13,7 @@ use App\Http\Controllers\ItemController;
 use App\Http\Controllers\LeaveRequestController;
 use App\Http\Controllers\ScheduleController;
 use App\Http\Controllers\ShiftController;
+use App\Http\Controllers\StaffPortalController;
 use App\Http\Controllers\StockMonitorController;
 use App\Http\Controllers\StockReportController;
 use App\Http\Controllers\StockTransferController;
@@ -66,6 +67,10 @@ Route::middleware(['auth'])->group(function () {
 
     // Input Cashflow Harian (Staff Cabang)
     Route::middleware(['role:staff_cabang'])->group(function () {
+        // Portal mobile staff: jadwal & profil
+        Route::get('/my-schedule', [StaffPortalController::class, 'schedule'])->name('staff.schedule');
+        Route::get('/my-profile', [StaffPortalController::class, 'profile'])->name('staff.profile');
+
         Route::get('/cashflows', [DailyCashflowController::class, 'index'])->name('cashflows.index');
         Route::post('/cashflows', [DailyCashflowController::class, 'store'])->name('cashflows.store');
 

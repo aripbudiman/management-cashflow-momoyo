@@ -56,6 +56,12 @@ const props = defineProps<{
             nik: string;
             full_name: string;
             phone_number: string | null;
+            birth_place: string | null;
+            birth_date: string | null;
+            address: string | null;
+            bank_name: string | null;
+            bank_account_number: string | null;
+            bank_account_name: string | null;
             current_branch_id: number;
             status: 'active' | 'inactive' | 'probation';
             created_at: string;
@@ -96,6 +102,7 @@ const props = defineProps<{
         id: number;
         name: string;
         display_name: string;
+        description?: string | null;
     }>;
     filters: {
         search?: string;
@@ -150,6 +157,12 @@ const form = useForm({
     nik: '',
     full_name: '',
     phone_number: '',
+    birth_place: '',
+    birth_date: '',
+    address: '',
+    bank_name: '',
+    bank_account_number: '',
+    bank_account_name: '',
     current_branch_id: props.branches[0]?.id || '',
     status: 'active',
     // Login User Info
@@ -161,6 +174,8 @@ const form = useForm({
         props.roles[0]?.id ||
         '',
 });
+
+const bankOptions = ['Bank Mandiri', 'BCA', 'BRI', 'BNI', 'BSI', 'CIMB Niaga', 'Bank Permata', 'Bank Danamon', 'BTN', 'Jago', 'SeaBank'];
 
 // Auto-generate suggestion email & username saat mengetik nama
 const handleNameInput = () => {
@@ -201,6 +216,12 @@ const openEditModal = (emp: (typeof props.employees.data)[number]) => {
     form.nik = emp.nik;
     form.full_name = emp.full_name;
     form.phone_number = emp.phone_number || '';
+    form.birth_place = emp.birth_place || '';
+    form.birth_date = emp.birth_date ? emp.birth_date.slice(0, 10) : '';
+    form.address = emp.address || '';
+    form.bank_name = emp.bank_name || '';
+    form.bank_account_number = emp.bank_account_number || '';
+    form.bank_account_name = emp.bank_account_name || '';
     form.current_branch_id = emp.current_branch_id;
     form.status = emp.status;
 
@@ -892,13 +913,65 @@ const getStatusBadge = (status: string) => {
                     </div>
                 </div>
 
+                <!-- SECTION 2: DATA PRIBADI & REKENING GAJI -->
+                <div class="space-y-4">
+                    <div
+                        class="flex items-center gap-2 border-b border-gray-100 pb-1 text-xs font-bold tracking-wider text-gray-500 uppercase dark:border-zinc-800"
+                    >
+                        <Wallet class="size-3.5 text-emerald-500" />
+                        <span>2. Data Pribadi & Rekening Gaji</span>
+                    </div>
+
+                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <div class="space-y-1.5">
+                            <Label for="birth_place" class="text-xs font-semibold">Tempat Lahir</Label>
+                            <Input id="birth_place" v-model="form.birth_place" placeholder="Contoh: Bekasi" class="h-10 rounded-xl text-xs" />
+                            <InputError :message="form.errors.birth_place" />
+                        </div>
+                        <div class="space-y-1.5">
+                            <Label for="birth_date" class="text-xs font-semibold">Tanggal Lahir</Label>
+                            <Input id="birth_date" v-model="form.birth_date" type="date" class="h-10 rounded-xl text-xs" />
+                            <InputError :message="form.errors.birth_date" />
+                        </div>
+                        <div class="space-y-1.5 sm:col-span-2">
+                            <Label for="address" class="text-xs font-semibold">Alamat Lengkap</Label>
+                            <textarea
+                                id="address"
+                                v-model="form.address"
+                                rows="2"
+                                placeholder="Jl. Sadariyah RT/RW 004/017, ..."
+                                class="w-full rounded-xl border border-gray-300 bg-white p-3 text-xs focus:ring-2 focus:ring-rose-500 focus:outline-none dark:border-zinc-800 dark:bg-zinc-900"
+                            />
+                            <InputError :message="form.errors.address" />
+                        </div>
+                        <div class="space-y-1.5">
+                            <Label for="bank_name" class="text-xs font-semibold">Nama Bank</Label>
+                            <Input id="bank_name" v-model="form.bank_name" list="bank-options" placeholder="Contoh: Bank Mandiri" class="h-10 rounded-xl text-xs" />
+                            <datalist id="bank-options">
+                                <option v-for="b in bankOptions" :key="b" :value="b" />
+                            </datalist>
+                            <InputError :message="form.errors.bank_name" />
+                        </div>
+                        <div class="space-y-1.5">
+                            <Label for="bank_account_number" class="text-xs font-semibold">Nomor Rekening</Label>
+                            <Input id="bank_account_number" v-model="form.bank_account_number" inputmode="numeric" placeholder="1560028450155" class="h-10 rounded-xl font-mono text-xs" />
+                            <InputError :message="form.errors.bank_account_number" />
+                        </div>
+                        <div class="space-y-1.5 sm:col-span-2">
+                            <Label for="bank_account_name" class="text-xs font-semibold">Atas Nama Rekening</Label>
+                            <Input id="bank_account_name" v-model="form.bank_account_name" placeholder="Kosongkan jika sama dengan nama karyawan" class="h-10 rounded-xl text-xs uppercase" />
+                            <InputError :message="form.errors.bank_account_name" />
+                        </div>
+                    </div>
+                </div>
+
                 <!-- SECTION 2: AKUN LOGIN PENGGUNA (RBAC) -->
                 <div class="space-y-4">
                     <div
                         class="flex items-center gap-2 border-b border-gray-100 pb-1 text-xs font-bold tracking-wider text-gray-500 uppercase dark:border-zinc-800"
                     >
                         <KeyRound class="size-3.5 text-blue-500" />
-                        <span>2. Hak Akses & Akun Login Aplikasi</span>
+                        <span>3. Hak Akses & Akun Login Aplikasi</span>
                     </div>
 
                     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">

@@ -9,6 +9,7 @@ use App\Models\DailyCashflow;
 use App\Models\Employee;
 use App\Models\SetoranTransfer;
 use App\Models\Shift;
+use App\Services\StaffHomeService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -31,6 +32,11 @@ class DashboardController extends Controller
 
         $today = Carbon::today()->toDateString();
         $roleName = $user->role?->name ?? 'staff_cabang';
+
+        // Staff cabang yang punya profil karyawan memakai Beranda mobile khusus
+        if ($roleName === 'staff_cabang' && $user->employee) {
+            return Inertia::render('StaffDashboard', app(StaffHomeService::class)->data($user->employee));
+        }
 
         // 1. Data Cabang Pengguna (jika Staff Cabang)
         $userBranch = $user->employee?->currentBranch;

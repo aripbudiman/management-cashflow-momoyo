@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreEmployeeRequest;
+use App\Http\Requests\UpdateEmployeeRequest;
 use App\Models\Branch;
 use App\Models\Employee;
 use App\Models\EmployeePlacement;
@@ -11,7 +13,6 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -82,26 +83,9 @@ class EmployeeController extends Controller
     /**
      * Simpan data karyawan baru beserta pembuatan akun login pengguna.
      */
-    public function store(Request $request): RedirectResponse
+    public function store(StoreEmployeeRequest $request): RedirectResponse
     {
-        $validated = $request->validate([
-            'nik' => ['required', 'string', 'max:30', 'unique:employees,nik'],
-            'full_name' => ['required', 'string', 'max:150'],
-            'phone_number' => ['nullable', 'string', 'max:20'],
-            'current_branch_id' => ['required', 'exists:branches,id'],
-            'status' => ['required', 'in:active,inactive,probation'],
-
-            // Akun Login Pengguna
-            'email' => ['required', 'email', 'max:255', 'unique:users,email'],
-            'username' => ['nullable', 'string', 'max:50', 'unique:users,username'],
-            'password' => ['required', 'string', 'min:6'],
-            'role_id' => ['required', 'exists:roles,id'],
-        ], [
-            'nik.unique' => 'NIK ini sudah terdaftar untuk karyawan lain.',
-            'email.unique' => 'Email ini sudah digunakan oleh akun lain.',
-            'username.unique' => 'Username ini sudah digunakan.',
-            'password.min' => 'Password minimal 6 karakter.',
-        ]);
+        $validated = $request->validated();
 
         DB::transaction(function () use ($validated, $request) {
             // 1. Buat User Login
@@ -119,12 +103,10 @@ class EmployeeController extends Controller
 
             // 2. Buat Record Karyawan
             $employee = Employee::create([
+                ...$request->employeeData(),
                 'user_id' => $user->id,
                 'nik' => strtoupper(trim($validated['nik'])),
                 'full_name' => trim($validated['full_name']),
-                'phone_number' => $validated['phone_number'],
-                'current_branch_id' => $validated['current_branch_id'],
-                'status' => $validated['status'],
             ]);
 
             // 3. Catat Surat Tugas Penempatan Perdana
@@ -145,26 +127,10 @@ class EmployeeController extends Controller
     /**
      * Perbarui data karyawan dan akun login.
      */
-    public function update(Request $request, Employee $employee): RedirectResponse
+    public function update(UpdateEmployeeRequest $request, Employee $employee): RedirectResponse
     {
         $user = $employee->user;
-
-        $validated = $request->validate([
-            'nik' => ['required', 'string', 'max:30', Rule::unique('employees', 'nik')->ignore($employee->id)],
-            'full_name' => ['required', 'string', 'max:150'],
-            'phone_number' => ['nullable', 'string', 'max:20'],
-            'current_branch_id' => ['required', 'exists:branches,id'],
-            'status' => ['required', 'in:active,inactive,probation'],
-
-            // Akun Login Pengguna
-            'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user?->id)],
-            'username' => ['nullable', 'string', 'max:50', Rule::unique('users', 'username')->ignore($user?->id)],
-            'password' => ['nullable', 'string', 'min:6'],
-            'role_id' => ['required', 'exists:roles,id'],
-        ], [
-            'nik.unique' => 'NIK ini sudah digunakan oleh karyawan lain.',
-            'email.unique' => 'Email ini sudah digunakan oleh akun lain.',
-        ]);
+        $validated = $request->validated();
 
         DB::transaction(function () use ($validated, $employee, $user, $request) {
             $oldBranchId = $employee->current_branch_id;
@@ -196,11 +162,9 @@ class EmployeeController extends Controller
 
             // 2. Update Employee
             $employee->update([
+                ...$request->employeeData(),
                 'nik' => strtoupper(trim($validated['nik'])),
                 'full_name' => trim($validated['full_name']),
-                'phone_number' => $validated['phone_number'],
-                'current_branch_id' => $validated['current_branch_id'],
-                'status' => $validated['status'],
                 'user_id' => $employee->user_id,
             ]);
 

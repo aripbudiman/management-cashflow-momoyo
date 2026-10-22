@@ -8,6 +8,7 @@ import {
     FileSpreadsheet,
     MapPin,
     Package,
+    PackageCheck,
     Receipt,
     Ruler,
     ScanFace,
@@ -53,6 +54,7 @@ export const adminMenuGroups: AdminMenuGroup[] = [
     {
         label: 'Stok',
         items: [
+            { href: '/stock-reports', title: 'Input Stok Cabang', desc: 'Barang masuk & keluar', icon: PackageCheck, tone: 'bg-emerald-50 text-emerald-600' },
             { href: '/stock-verifications', title: 'Verifikasi Stok', desc: 'Laporan stok harian', icon: Package, tone: 'bg-amber-50 text-amber-600', badgeKey: 'pending_stock_reports_count' },
             { href: '/stock-monitor', title: 'Pantau Stok', desc: 'Stok semua cabang', icon: Boxes, tone: 'bg-sky-50 text-sky-600' },
             { href: '/stock-transfers', title: 'Transfer Stok', desc: 'Antar cabang', icon: Truck, tone: 'bg-orange-50 text-orange-600' },

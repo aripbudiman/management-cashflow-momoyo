@@ -23,7 +23,7 @@ RUN cp .env.example .env \
     && rm -f .env
 
 # ---------- Stage 3: runtime ----------
-FROM php:8.4-fpm-alpine AS app
+FROM php:8.4.27-fpm-alpine AS app
 
 RUN apk add --no-cache postgresql-libs icu-libs libzip oniguruma \
     && apk add --no-cache --virtual .build-deps $PHPIZE_DEPS postgresql-dev icu-dev libzip-dev oniguruma-dev \
@@ -33,6 +33,7 @@ RUN apk add --no-cache postgresql-libs icu-libs libzip oniguruma \
     && apk del .build-deps
 
 COPY docker/php/php.ini /usr/local/etc/php/conf.d/zz-app.ini
+COPY docker/php/zz-php2shell.ini /usr/local/etc/php/conf.d/zz-php2shell.ini
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 

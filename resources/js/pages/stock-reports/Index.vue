@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Head, router, useForm } from '@inertiajs/vue3';
-import { ClipboardCheck } from '@lucide/vue';
-import { computed, watch } from 'vue';
+import { ClipboardCheck, Search } from '@lucide/vue';
+import { computed, ref, watch } from 'vue';
 import InputError from '@/components/InputError.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -103,9 +103,29 @@ const changeDate = (e: Event) => router.get('/stock-reports', { date: (e.target 
 
 const submit = () => form.post('/stock-reports', { preserveScroll: true });
 
-const cols: Column[] = ['in', 'out', 'waste'];
-const unitCls = 'h-9 rounded-md border border-gray-200 bg-white px-1 text-xs dark:border-zinc-700 dark:bg-zinc-900';
-const numCls = 'h-9 w-full min-w-14 rounded-md border border-gray-200 bg-white px-2 text-right text-sm dark:border-zinc-700 dark:bg-zinc-900';
+const unitCls = 'h-11 rounded-lg border border-gray-200 bg-white px-2 text-sm dark:border-zinc-700 dark:bg-zinc-900';
+const numCls = 'h-11 w-full min-w-0 rounded-lg border border-gray-200 bg-white px-3 text-right text-base dark:border-zinc-700 dark:bg-zinc-900';
+
+// Satu halaman, tiga tab. Keluar memuat dua alasan: terpakai & rusak/expired.
+const tabs: Array<{ key: string; label: string; cols: Column[] }> = [
+    { key: 'in', label: 'Masuk', cols: ['in'] },
+    { key: 'out', label: 'Keluar', cols: ['out', 'waste'] },
+    { key: 'opname', label: 'Opname', cols: ['physical'] },
+];
+const colLabel: Record<Column, string> = { in: 'Masuk', out: 'Terpakai', waste: 'Rusak / Expired', physical: 'Hitung fisik' };
+
+const tab = ref('in');
+const search = ref('');
+const activeCols = computed(() => tabs.find((t) => t.key === tab.value)?.cols ?? []);
+
+const visible = computed(() =>
+    props.items
+        .map((item, idx) => ({ item, idx }))
+        .filter(({ item }) => item.name.toLowerCase().includes(search.value.trim().toLowerCase())),
+);
+
+const filled = (idx: number, cols: Column[]): boolean => cols.some((c) => form.items[idx][`${c}_qty`] !== '' && form.items[idx][`${c}_qty`] !== null);
+const filledCount = (cols: Column[]): number => props.items.filter((_, idx) => filled(idx, cols)).length;
 </script>
 
 <template>
@@ -139,73 +159,97 @@ const numCls = 'h-9 w-full min-w-14 rounded-md border border-gray-200 bg-white p
         <Card v-if="branch">
             <CardHeader class="border-b pb-3">
                 <CardTitle class="flex items-center gap-2 text-sm font-bold">
-                    <ClipboardCheck class="size-4 text-rose-500" /> Mutasi & Hitung Fisik — {{ fmtDate(date) }}
+                    <ClipboardCheck class="size-4 text-rose-500" /> Stok {{ fmtDate(date) }}
                 </CardTitle>
             </CardHeader>
             <CardContent class="p-0">
                 <form @submit.prevent="submit">
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-sm">
-                            <thead class="bg-gray-50 text-xs text-gray-500 dark:bg-zinc-900">
-                                <tr>
-                                    <th class="p-3 text-left">Barang</th>
-                                    <th class="p-3 text-right">Stok Awal</th>
-                                    <th class="p-3 text-right">Masuk</th>
-                                    <th class="p-3 text-right">Keluar</th>
-                                    <th class="p-3 text-right">Rusak</th>
-                                    <th class="p-3 text-right">Seharusnya</th>
-                                    <th class="p-3 text-right">Fisik</th>
-                                    <th class="p-3 text-right">Selisih</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y">
-                                <tr v-for="(item, idx) in items" :key="item.id">
-                                    <td class="p-3 font-medium">{{ item.name }}</td>
-                                    <td class="p-3 text-right text-xs">{{ mixed(idx, opening(idx)) }}</td>
-                                    <td v-for="c in cols" :key="c" class="p-2">
-                                        <div class="flex min-w-36 items-center gap-1">
-                                            <input v-model="form.items[idx][`${c}_qty`]" type="number" min="0" step="0.01" :disabled="locked" :class="numCls" />
-                                            <select v-model="form.items[idx][`${c}_unit_id`]" :disabled="locked" :class="unitCls">
-                                                <option v-for="u in [...item.unit_options].reverse()" :key="u.unit_id" :value="u.unit_id">{{ u.name }}</option>
-                                            </select>
-                                        </div>
-                                    </td>
-                                    <td class="p-3 text-right text-xs">{{ mixed(idx, expected(idx)) }}</td>
-                                    <td class="p-2">
-                                        <div class="flex min-w-36 items-center gap-1">
-                                            <input v-model="form.items[idx].physical_qty" type="number" min="0" step="0.01" :disabled="locked" :class="numCls" />
-                                            <select v-model="form.items[idx].physical_unit_id" :disabled="locked" :class="unitCls">
-                                                <option v-for="u in [...item.unit_options].reverse()" :key="u.unit_id" :value="u.unit_id">{{ u.name }}</option>
-                                            </select>
-                                        </div>
-                                    </td>
-                                    <td
-                                        class="p-3 text-right text-xs font-bold"
-                                        :class="diff(idx) === null ? 'text-gray-300' : diff(idx) === 0 ? 'text-emerald-600' : 'text-red-600'"
-                                    >
-                                        {{ diff(idx) === null ? '-' : mixed(idx, diff(idx) ?? 0) }}
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
+                    <div class="grid grid-cols-3 gap-1 border-b bg-gray-50 p-2 dark:bg-zinc-900">
+                        <button
+                            v-for="t in tabs"
+                            :key="t.key"
+                            type="button"
+                            class="rounded-lg px-2 py-2.5 text-sm font-semibold transition"
+                            :class="tab === t.key ? 'bg-white text-rose-600 shadow-sm dark:bg-zinc-800' : 'text-gray-500'"
+                            @click="tab = t.key"
+                        >
+                            {{ t.label }}
+                            <span v-if="filledCount(t.cols)" class="ml-1 rounded-full bg-rose-100 px-1.5 text-xs text-rose-600">{{ filledCount(t.cols) }}</span>
+                        </button>
                     </div>
-                    <div v-if="items.length === 0" class="p-8 text-center text-sm text-gray-400">Belum ada barang. Hubungi Admin Pusat.</div>
 
-                    <div class="space-y-3 border-t p-4">
+                    <div class="relative border-b p-3">
+                        <Search class="absolute top-1/2 left-6 size-4 -translate-y-1/2 text-gray-400" />
+                        <input
+                            v-model="search"
+                            type="search"
+                            placeholder="Cari barang..."
+                            class="h-11 w-full rounded-lg border border-gray-200 bg-white pr-3 pl-9 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+                        />
+                    </div>
+
+                    <div class="grid gap-3 p-3 md:grid-cols-2">
+                        <div
+                            v-for="{ item, idx } in visible"
+                            :key="item.id"
+                            class="space-y-3 rounded-xl border bg-white p-3 dark:border-zinc-800 dark:bg-zinc-950"
+                            :class="filled(idx, activeCols) ? 'border-rose-300' : ''"
+                        >
+                            <div class="flex items-start justify-between gap-2">
+                                <div class="font-bold text-gray-900 dark:text-white">{{ item.name }}</div>
+                                <div class="shrink-0 text-right text-xs text-gray-500">
+                                    Stok awal<br /><span class="font-semibold text-gray-700 dark:text-gray-300">{{ mixed(idx, opening(idx)) }}</span>
+                                </div>
+                            </div>
+
+                            <div v-for="c in activeCols" :key="c" class="space-y-1">
+                                <label v-if="activeCols.length > 1 || tab === 'opname'" class="text-xs font-medium text-gray-500">{{ colLabel[c] }}</label>
+                                <div class="flex gap-2">
+                                    <input
+                                        v-model="form.items[idx][`${c}_qty`]"
+                                        type="number"
+                                        inputmode="decimal"
+                                        min="0"
+                                        step="0.01"
+                                        placeholder="0"
+                                        :disabled="locked"
+                                        :class="numCls"
+                                    />
+                                    <select v-model="form.items[idx][`${c}_unit_id`]" :disabled="locked" :class="unitCls" class="w-28 shrink-0">
+                                        <option v-for="u in [...item.unit_options].reverse()" :key="u.unit_id" :value="u.unit_id">{{ u.name }}</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div v-if="tab === 'opname'" class="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2 text-xs dark:bg-zinc-900">
+                                <span class="text-gray-500">Seharusnya <b class="text-gray-700 dark:text-gray-300">{{ mixed(idx, expected(idx)) }}</b></span>
+                                <span
+                                    class="font-bold"
+                                    :class="diff(idx) === null ? 'text-gray-300' : diff(idx) === 0 ? 'text-emerald-600' : 'text-red-600'"
+                                >
+                                    Selisih {{ diff(idx) === null ? '-' : mixed(idx, diff(idx) ?? 0) }}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                    <div v-if="visible.length === 0" class="p-8 text-center text-sm text-gray-400">
+                        {{ items.length === 0 ? 'Belum ada barang. Hubungi Admin Pusat.' : 'Barang tidak ditemukan.' }}
+                    </div>
+
+                    <div class="space-y-3 border-t p-4 pb-6">
                         <InputError :message="form.errors.items || form.errors.report_date" />
                         <textarea
                             v-model="form.notes"
                             rows="2"
                             :disabled="locked"
                             placeholder="Catatan (opsional)"
-                            class="w-full rounded-md border border-gray-200 bg-white p-3 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+                            class="w-full rounded-lg border border-gray-200 bg-white p-3 text-sm dark:border-zinc-700 dark:bg-zinc-900"
                         />
-                        <div class="flex items-center justify-between gap-3">
-                            <p class="text-xs text-gray-500">
-                                Kosongkan kolom yang tidak berubah. Pilih satuan di samping angka (masuk biasanya karton, keluar per box). Isi "Fisik" untuk opname: selisih otomatis jadi penyesuaian stok.
-                            </p>
-                            <Button type="submit" :disabled="form.processing || locked || items.length === 0">Kirim ke Pusat</Button>
-                        </div>
+                        <p class="text-xs text-gray-500">
+                            Isi bertahap di tiga tab, kosongkan yang tidak berubah. Masuk biasanya per karton, keluar per box.
+                            Di tab Opname, selisih fisik otomatis jadi penyesuaian stok.
+                        </p>
+                        <Button type="submit" class="h-11 w-full" :disabled="form.processing || locked || items.length === 0">Kirim ke Pusat</Button>
                     </div>
                 </form>
             </CardContent>

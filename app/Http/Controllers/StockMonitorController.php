@@ -6,10 +6,13 @@ use App\Models\Branch;
 use App\Models\Item;
 use App\Models\StockMovement;
 use App\Repositories\StockRepository;
+use App\Services\StockExportService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Inertia\Inertia;
 use Inertia\Response;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class StockMonitorController extends Controller
 {
@@ -34,6 +37,17 @@ class StockMonitorController extends Controller
             ])->values(),
             'filters' => $request->only('search'),
         ]);
+    }
+
+    public function export(Request $request, StockExportService $export): StreamedResponse
+    {
+        $spreadsheet = $export->currentStock($this->visibleBranches($request), $request->input('search'));
+
+        return response()->streamDownload(
+            fn () => (new Xlsx($spreadsheet))->save('php://output'),
+            'rekap-stok-'.today()->toDateString().'.xlsx',
+            ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+        );
     }
 
     public function card(Request $request): Response

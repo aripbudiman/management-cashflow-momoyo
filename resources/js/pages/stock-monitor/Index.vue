@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Head, Link, router } from '@inertiajs/vue3';
-import { AlertTriangle, Boxes } from '@lucide/vue';
+import { AlertTriangle, Boxes, Download } from '@lucide/vue';
 import { ref } from 'vue';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -62,6 +62,11 @@ const lowCount = (): number => props.items.reduce((n, r) => n + props.branches.f
                     <option value="base">Satuan terkecil</option>
                 </select>
                 <Input v-model="search" placeholder="Cari barang..." class="h-9 w-44" @keyup.enter="router.get('/stock-monitor', { search: search || undefined }, { preserveState: true })" />
+                <Button as-child variant="outline">
+                    <a :href="`/stock-monitor/export${search ? `?search=${encodeURIComponent(search)}` : ''}`" class="gap-1.5">
+                        <Download class="size-4" /> Export Excel
+                    </a>
+                </Button>
                 <Button as-child variant="outline"><Link href="/stock-monitor/card">Kartu Stok</Link></Button>
             </div>
         </div>

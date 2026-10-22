@@ -6,6 +6,7 @@ use App\Models\Branch;
 use App\Models\Item;
 use App\Models\StockMovement;
 use App\Models\StockReport;
+use App\Models\StockTransaction;
 use App\Models\StockTransfer;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
@@ -113,5 +114,58 @@ class StockRepository
             ->latest('sent_at')
             ->limit($limit)
             ->get();
+    }
+
+    /**
+     * Total mutasi per barang pada satu tanggal (selain penyesuaian opname), untuk rekap opname.
+     * Kolom: in_qty, out_qty, waste_qty (positif) dan transfer_qty (net, bertanda).
+     *
+     * @return Collection<int, StockMovement>
+     */
+    public function dayMovements(int $branchId, string $date): Collection
+    {
+        return StockMovement::query()
+            ->where('branch_id', $branchId)
+            ->where('moved_at', $date)
+            ->whereNull('report_id')
+            ->selectRaw("item_id,
+                sum(case when type = 'in' then qty else 0 end) as in_qty,
+                sum(case when type = 'out' then -qty else 0 end) as out_qty,
+                sum(case when type = 'waste' then -qty else 0 end) as waste_qty,
+                sum(case when type in ('transfer_in', 'transfer_out') then qty else 0 end) as transfer_qty")
+            ->groupBy('item_id')
+            ->get()
+            ->keyBy('item_id');
+    }
+
+    /**
+     * Transaksi masuk/keluar satu cabang pada satu tanggal, dalam bentuk array siap tampil.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function transactionsForDay(int $branchId, string $date): array
+    {
+        return StockTransaction::with(['user:id,name', 'canceller:id,name', 'items.item:id,name', 'items.unit:id,name'])
+            ->where('branch_id', $branchId)
+            ->where('moved_at', $date)
+            ->latest('id')
+            ->get()
+            ->map(fn (StockTransaction $t) => [
+                'id' => $t->id,
+                'type' => $t->type,
+                'status' => $t->status,
+                'note' => $t->note,
+                'created_at' => $t->created_at,
+                'user' => $t->user?->name,
+                'cancelled_by' => $t->canceller?->name,
+                'items' => $t->items->map(fn ($i) => [
+                    'id' => $i->id,
+                    'type' => $i->type,
+                    'name' => $i->item->getRawOriginal('name'),
+                    'qty' => (float) $i->input_qty,
+                    'unit' => $i->unit?->name,
+                ])->all(),
+            ])
+            ->all();
     }
 }

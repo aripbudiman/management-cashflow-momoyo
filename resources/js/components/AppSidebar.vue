@@ -136,7 +136,7 @@ const isStaffCabang = computed(() => userRole.value === 'staff_cabang');
                         </SidebarMenuButton>
                     </SidebarMenuItem>
 
-                    <SidebarMenuItem v-if="isStaffCabang">
+                    <SidebarMenuItem>
                         <SidebarMenuButton
                             as-child
                             :is-active="isCurrentUrl('/stock-reports')"
@@ -144,7 +144,7 @@ const isStaffCabang = computed(() => userRole.value === 'staff_cabang');
                         >
                             <Link href="/stock-reports" class="flex items-center gap-2.5">
                                 <PackageCheck class="size-4 text-sky-500" />
-                                <span class="text-sm font-medium">Input Stok Harian</span>
+                                <span class="text-sm font-medium">{{ isAdminPusat ? 'Input Stok Cabang' : 'Input Stok Harian' }}</span>
                             </Link>
                         </SidebarMenuButton>
                     </SidebarMenuItem>

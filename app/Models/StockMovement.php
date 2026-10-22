@@ -18,7 +18,7 @@ class StockMovement extends Model
 
     protected $fillable = [
         'branch_id', 'item_id', 'type', 'qty', 'unit_price', 'report_id',
-        'transfer_id', 'user_id', 'moved_at', 'note',
+        'transfer_id', 'transaction_id', 'user_id', 'moved_at', 'note',
     ];
 
     protected function casts(): array

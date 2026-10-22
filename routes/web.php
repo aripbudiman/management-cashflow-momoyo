@@ -16,6 +16,7 @@ use App\Http\Controllers\ShiftController;
 use App\Http\Controllers\StaffPortalController;
 use App\Http\Controllers\StockMonitorController;
 use App\Http\Controllers\StockReportController;
+use App\Http\Controllers\StockTransactionController;
 use App\Http\Controllers\StockTransferController;
 use App\Http\Controllers\StockVerificationController;
 use App\Http\Controllers\UnitController;
@@ -75,7 +76,6 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/cashflows', [DailyCashflowController::class, 'store'])->name('cashflows.store');
 
         // Input stok harian & kirim transfer antar cabang (Staff Cabang)
-        Route::get('/stock-reports', [StockReportController::class, 'index'])->name('stock-reports.index');
         Route::post('/stock-reports', [StockReportController::class, 'store'])->name('stock-reports.store');
         Route::post('/stock-transfers', [StockTransferController::class, 'store'])->name('stock-transfers.store');
         Route::post('/stock-transfers/{transfer}/receive', [StockTransferController::class, 'receive'])->name('stock-transfers.receive');
@@ -83,7 +83,12 @@ Route::middleware(['auth'])->group(function () {
 
     // Pantauan stok, kartu stok & daftar transfer (Staff = cabang sendiri, Admin Pusat = semua cabang)
     Route::middleware(['role:staff_cabang,admin_pusat'])->group(function () {
+        // Stok harian: staff untuk cabangnya, admin pusat memilih cabang lalu input masuk/keluar
+        Route::get('/stock-reports', [StockReportController::class, 'index'])->name('stock-reports.index');
+        Route::post('/stock-transactions', [StockTransactionController::class, 'store'])->name('stock-transactions.store');
+        Route::post('/stock-transactions/{transaction}/cancel', [StockTransactionController::class, 'cancel'])->name('stock-transactions.cancel');
         Route::get('/stock-monitor', [StockMonitorController::class, 'index'])->name('stock-monitor.index');
+        Route::get('/stock-monitor/export', [StockMonitorController::class, 'export'])->name('stock-monitor.export');
         Route::get('/stock-monitor/card', [StockMonitorController::class, 'card'])->name('stock-monitor.card');
         Route::get('/stock-transfers', [StockTransferController::class, 'index'])->name('stock-transfers.index');
         Route::post('/stock-transfers/{transfer}/cancel', [StockTransferController::class, 'cancel'])->name('stock-transfers.cancel');

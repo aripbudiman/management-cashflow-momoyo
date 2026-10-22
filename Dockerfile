@@ -25,9 +25,10 @@ RUN cp .env.example .env \
 # ---------- Stage 3: runtime ----------
 FROM php:8.4.27-fpm-alpine AS app
 
-RUN apk add --no-cache postgresql-libs icu-libs libzip oniguruma \
-    && apk add --no-cache --virtual .build-deps $PHPIZE_DEPS postgresql-dev icu-dev libzip-dev oniguruma-dev \
-    && docker-php-ext-install pdo_pgsql pgsql intl zip bcmath pcntl opcache mbstring \
+RUN apk add --no-cache postgresql-libs icu-libs libzip oniguruma libpng libjpeg-turbo freetype \
+    && apk add --no-cache --virtual .build-deps $PHPIZE_DEPS postgresql-dev icu-dev libzip-dev oniguruma-dev libpng-dev libjpeg-turbo-dev freetype-dev \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install pdo_pgsql pgsql intl zip bcmath pcntl opcache mbstring gd \
     && pecl install redis \
     && docker-php-ext-enable redis \
     && apk del .build-deps

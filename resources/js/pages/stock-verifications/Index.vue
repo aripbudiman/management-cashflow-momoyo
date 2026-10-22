@@ -26,6 +26,7 @@ interface Report {
         in_qty: string;
         out_qty: string;
         waste_qty: string;
+        transfer_qty: string;
         expected_qty: string;
         physical_qty: string | null;
         diff_qty: string;
@@ -57,6 +58,8 @@ const notes = ref('');
 
 const q = (i: Report['items'][number], base: string): string => formatMixed(Number(base), i.item.unit_options);
 
+const hasTransfer = (r: Report): boolean => r.items.some((i) => Number(i.transfer_qty) !== 0);
+
 const diffCount = (r: Report) => r.items.filter((i) => Number(i.diff_qty) !== 0).length;
 
 const verify = (r: Report) =>
@@ -82,7 +85,7 @@ const revise = () => {
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
                 <h1 class="text-2xl font-black tracking-tight text-gray-900 dark:text-white">Verifikasi Stok Harian</h1>
-                <p class="text-sm text-gray-500">{{ reports.total }} laporan stok dari cabang.</p>
+                <p class="text-sm text-gray-500">{{ reports.total }} rekap opname harian dari cabang.</p>
             </div>
             <div class="flex flex-wrap gap-2">
                 <select :value="filters.branch_id ?? ''" :class="selectCls" @change="filter('branch_id', ($event.target as HTMLSelectElement).value)">
@@ -105,7 +108,7 @@ const revise = () => {
                         <div>
                             <div class="font-bold text-gray-900 dark:text-white">{{ r.branch.branch_name }} · {{ fmtDate(r.report_date) }}</div>
                             <div class="text-xs text-gray-500">
-                                {{ r.items.length }} barang dicatat ·
+                                {{ r.items.length }} barang di rekap ·
                                 <span :class="diffCount(r) ? 'font-bold text-red-600' : ''">{{ diffCount(r) }} selisih opname</span>
                                 · oleh {{ r.submitted_by?.name ?? '-' }}
                             </div>
@@ -146,7 +149,8 @@ const revise = () => {
                                     <th class="p-2 text-right">Masuk</th>
                                     <th class="p-2 text-right">Keluar</th>
                                     <th class="p-2 text-right">Rusak</th>
-                                    <th class="p-2 text-right">Fisik</th>
+                                    <th v-if="hasTransfer(detail)" class="p-2 text-right">Transfer</th>
+                                    <th class="p-2 text-right">Sisa</th>
                                     <th class="p-2 text-right">Selisih</th>
                                 </tr>
                             </thead>
@@ -157,7 +161,8 @@ const revise = () => {
                                     <td class="p-2 text-right text-xs">{{ q(i, i.in_qty) }}</td>
                                     <td class="p-2 text-right text-xs">{{ q(i, i.out_qty) }}</td>
                                     <td class="p-2 text-right text-xs">{{ q(i, i.waste_qty) }}</td>
-                                    <td class="p-2 text-right text-xs">{{ i.physical_qty === null ? '-' : q(i, i.physical_qty) }}</td>
+                                    <td v-if="hasTransfer(detail)" class="p-2 text-right text-xs">{{ q(i, i.transfer_qty) }}</td>
+                                    <td class="p-2 text-right text-xs font-semibold">{{ q(i, i.physical_qty ?? i.expected_qty) }}</td>
                                     <td class="p-2 text-right text-xs font-bold" :class="Number(i.diff_qty) ? 'text-red-600' : 'text-gray-400'">
                                         {{ q(i, i.diff_qty) }}
                                     </td>

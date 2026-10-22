@@ -7,19 +7,135 @@ use App\Models\BranchStock;
 use App\Models\Item;
 use App\Models\StockMovement;
 use App\Models\StockReport;
+use App\Models\StockTransaction;
 use App\Models\StockTransfer;
 use App\Models\User;
+use App\Repositories\StockRepository;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class StockService
 {
+    public function __construct(private readonly StockRepository $stocks) {}
+
     /**
-     * Simpan (atau perbarui) laporan stok harian satu cabang. Mutasi laporan lama dibalik lalu dibuat ulang.
+     * Catat transaksi barang masuk/keluar. Berlaku langsung (tanpa verifikasi) dan mengubah stok saat itu juga.
      *
-     * @param  array{report_date: string, notes?: ?string, items: array<int, array{item_id: int, in_qty?: mixed, out_qty?: mixed, waste_qty?: mixed, physical_qty?: mixed, note?: ?string}>}  $data
+     * @param  array{moved_at: string, type: string, note?: ?string, items: array<int, array{item_id: int, kind: string, qty: mixed, unit_id?: mixed, note?: ?string}>}  $data
      */
-    public function saveReport(User $user, Branch $branch, array $data): StockReport
+    public function recordTransaction(User $user, Branch $branch, array $data): StockTransaction
+    {
+        return DB::transaction(function () use ($user, $branch, $data) {
+            $this->assertDateOpen($branch->id, $data['moved_at']);
+
+            $transaction = StockTransaction::create([
+                'branch_id' => $branch->id,
+                'type' => $data['type'],
+                'moved_at' => $data['moved_at'],
+                'user_id' => $user->id,
+                'note' => $data['note'] ?? null,
+                'status' => 'active',
+            ]);
+
+            $items = Item::with('itemUnits.unit')->whereIn('id', collect($data['items'])->pluck('item_id'))->get()->keyBy('id');
+
+            foreach ($data['items'] as $line) {
+                $item = $items->get((int) $line['item_id']);
+                $inputs = [];
+                $base = $this->toBase($item, ['x_qty' => $line['qty'], 'x_unit_id' => $line['unit_id'] ?? null], 'x', $inputs);
+
+                if (! $base || $base <= 0) {
+                    continue;
+                }
+
+                $kind = $line['kind'];
+                $stock = $this->lockStock($branch->id, $item->id);
+
+                if ($kind !== 'in' && (float) $stock->qty < $base) {
+                    throw ValidationException::withMessages(['items' => "Stok {$item->name} tidak cukup (tersisa {$stock->qty} {$item->unit})."]);
+                }
+
+                $transaction->items()->create([
+                    'item_id' => $item->id,
+                    'type' => $kind,
+                    'input_qty' => $inputs['x']['qty'],
+                    'unit_id' => $inputs['x']['unit_id'],
+                    'base_qty' => $base,
+                    'unit_price' => $item->basePrice(),
+                    'note' => $line['note'] ?? null,
+                ]);
+
+                $this->record($stock, $kind, $kind === 'in' ? $base : -$base, $user, $data['moved_at'], $item->basePrice(), null, null, $line['note'] ?? null, $transaction->id);
+            }
+
+            if (! $transaction->items()->exists()) {
+                throw ValidationException::withMessages(['items' => 'Isi minimal satu barang dengan jumlah lebih dari 0.']);
+            }
+
+            return $transaction;
+        });
+    }
+
+    /**
+     * Batalkan transaksi: mutasi dihapus dan stok dikembalikan. Ditolak jika opname tanggal itu sudah dikirim
+     * atau pembatalan membuat stok minus (barang masuk sudah terpakai).
+     */
+    public function cancelTransaction(StockTransaction $transaction, User $user): void
+    {
+        DB::transaction(function () use ($transaction, $user) {
+            $transaction = StockTransaction::lockForUpdate()->findOrFail($transaction->id);
+
+            if ($transaction->status !== 'active') {
+                throw ValidationException::withMessages(['status' => 'Transaksi ini sudah dibatalkan.']);
+            }
+
+            $this->assertDateOpen($transaction->branch_id, $transaction->moved_at->toDateString());
+
+            foreach ($transaction->movements()->get()->groupBy('item_id') as $itemId => $rows) {
+                $stock = $this->lockStock($transaction->branch_id, (int) $itemId);
+                $delta = round((float) $rows->sum(fn (StockMovement $m) => (float) $m->qty), 2);
+
+                if (round((float) $stock->qty - $delta, 2) < 0) {
+                    $name = Item::whereKey($itemId)->value('name');
+                    throw ValidationException::withMessages(['status' => "Tidak bisa dibatalkan: stok {$name} akan minus karena sebagian sudah terpakai."]);
+                }
+
+                $stock->decrement('qty', $delta);
+            }
+
+            $transaction->movements()->delete();
+            $transaction->update(['status' => 'cancelled', 'cancelled_by' => $user->id, 'cancelled_at' => now()]);
+        });
+    }
+
+    /**
+     * Tanggal masih terbuka untuk transaksi/opname: belum ada opname terkirim pada tanggal itu atau setelahnya
+     * (opname yang diminta revisi dibuka kembali), dan tidak di masa depan.
+     */
+    public function dateIsOpen(int $branchId, string $date): bool
+    {
+        if ($date > today()->toDateString()) {
+            return false;
+        }
+
+        $latest = StockReport::where('branch_id', $branchId)->orderByDesc('report_date')->first(['report_date', 'status']);
+
+        if (! $latest) {
+            return true;
+        }
+
+        $latestDate = $latest->report_date->toDateString();
+
+        return $date > $latestDate || ($date === $latestDate && $latest->status === 'revision_needed');
+    }
+
+    /**
+     * Kirim rekap opname harian ke pusat. Stok awal, masuk, keluar, rusak, dan transfer dihitung dari transaksi
+     * tanggal itu; staff hanya mengisi hitungan fisik (opsional). Selisih fisik dibuat sebagai penyesuaian stok.
+     *
+     * @param  array{report_date: string, notes?: ?string, items?: array<int, array{item_id: int, physical_qty?: mixed, physical_unit_id?: mixed, note?: ?string}>}  $data
+     */
+    public function submitOpname(User $user, Branch $branch, array $data): StockReport
     {
         return DB::transaction(function () use ($user, $branch, $data) {
             $existing = StockReport::where('branch_id', $branch->id)
@@ -28,12 +144,11 @@ class StockService
                 ->first();
 
             if ($existing?->status === 'verified') {
-                throw ValidationException::withMessages(['report_date' => 'Laporan stok tanggal ini sudah diverifikasi Admin Pusat dan tidak bisa diubah.']);
+                throw ValidationException::withMessages(['report_date' => 'Opname tanggal ini sudah diverifikasi Admin Pusat dan tidak bisa diubah.']);
             }
 
-            $latestDate = StockReport::where('branch_id', $branch->id)->max('report_date');
-            if ($latestDate && $data['report_date'] < substr((string) $latestDate, 0, 10)) {
-                throw ValidationException::withMessages(['report_date' => 'Laporan hanya bisa diisi untuk tanggal terbaru (setelah '.substr((string) $latestDate, 0, 10).').']);
+            if ($existing === null && ! $this->dateIsOpen($branch->id, $data['report_date'])) {
+                throw ValidationException::withMessages(['report_date' => 'Opname hanya bisa dikirim untuk tanggal setelah opname terakhir dan tidak di masa depan.']);
             }
 
             if ($existing) {
@@ -51,28 +166,26 @@ class StockService
                 'verified_at' => null,
             ])->save();
 
-            $items = Item::with('itemUnits.unit')->whereIn('id', collect($data['items'])->pluck('item_id'))->get()->keyBy('id');
+            $moved = $this->stocks->dayMovements($branch->id, $data['report_date']);
+            $physicalLines = collect($data['items'] ?? [])->keyBy('item_id');
+            $itemIds = $moved->keys()->merge($physicalLines->filter(fn ($l) => isset($l['physical_qty']) && $l['physical_qty'] !== '')->keys())->unique();
+            $items = Item::with('itemUnits.unit')->whereIn('id', $itemIds)->get()->keyBy('id');
 
-            foreach ($data['items'] as $line) {
-                $item = $items->get((int) $line['item_id']);
-                $inputs = [];
-                $in = $this->toBase($item, $line, 'in', $inputs) ?? 0.0;
-                $out = $this->toBase($item, $line, 'out', $inputs) ?? 0.0;
-                $waste = $this->toBase($item, $line, 'waste', $inputs) ?? 0.0;
-                $physical = $this->toBase($item, $line, 'physical', $inputs);
-
-                if ($in == 0.0 && $out == 0.0 && $waste == 0.0 && $physical === null) {
-                    continue;
-                }
+            foreach ($itemIds as $itemId) {
+                $item = $items->get((int) $itemId);
+                $m = $moved->get($itemId);
+                $in = round((float) ($m->in_qty ?? 0), 2);
+                $out = round((float) ($m->out_qty ?? 0), 2);
+                $waste = round((float) ($m->waste_qty ?? 0), 2);
+                $transfer = round((float) ($m->transfer_qty ?? 0), 2);
 
                 $stock = $this->lockStock($branch->id, $item->id);
-                $opening = (float) $stock->qty;
-                $expected = round($opening + $in - $out - $waste, 2);
+                $expected = round((float) $stock->qty, 2);
+                $opening = round($expected - $in + $out + $waste - $transfer, 2);
 
-                if ($expected < 0) {
-                    throw ValidationException::withMessages(['items' => "Stok {$item->name} tidak cukup (stok awal {$opening}, keluar+rusak melebihi stok)."]);
-                }
-
+                $line = $physicalLines->get($itemId, []);
+                $inputs = [];
+                $physical = $this->toBase($item, $line, 'physical', $inputs);
                 $diff = $physical !== null ? round($physical - $expected, 2) : 0.0;
 
                 $report->items()->create([
@@ -82,6 +195,7 @@ class StockService
                     'in_qty' => $in,
                     'out_qty' => $out,
                     'waste_qty' => $waste,
+                    'transfer_qty' => $transfer,
                     'expected_qty' => $expected,
                     'physical_qty' => $physical,
                     'diff_qty' => $diff,
@@ -89,11 +203,8 @@ class StockService
                     'note' => $line['note'] ?? null,
                 ]);
 
-                $movements = [['in', $in], ['out', -$out], ['waste', -$waste], ['adjustment', $diff]];
-                foreach ($movements as [$type, $qty]) {
-                    if ($qty != 0.0) {
-                        $this->record($stock, $type, $qty, $user, $data['report_date'], $item->basePrice(), $report->id);
-                    }
+                if ($diff != 0.0) {
+                    $this->record($stock, 'adjustment', $diff, $user, $data['report_date'], $item->basePrice(), $report->id);
                 }
             }
 
@@ -218,7 +329,7 @@ class StockService
         return BranchStock::where('branch_id', $branchId)->where('item_id', $itemId)->lockForUpdate()->firstOrFail();
     }
 
-    private function record(BranchStock $stock, string $type, float $qty, User $user, string $date, mixed $price, ?int $reportId = null, ?int $transferId = null, ?string $note = null): void
+    private function record(BranchStock $stock, string $type, float $qty, User $user, string $date, mixed $price, ?int $reportId = null, ?int $transferId = null, ?string $note = null, ?int $transactionId = null): void
     {
         StockMovement::create([
             'branch_id' => $stock->branch_id,
@@ -228,12 +339,20 @@ class StockService
             'unit_price' => $price,
             'report_id' => $reportId,
             'transfer_id' => $transferId,
+            'transaction_id' => $transactionId,
             'user_id' => $user->id,
             'moved_at' => $date,
             'note' => $note,
         ]);
 
         $stock->increment('qty', $qty);
+    }
+
+    private function assertDateOpen(int $branchId, string $date): void
+    {
+        if (! $this->dateIsOpen($branchId, $date)) {
+            throw ValidationException::withMessages(['moved_at' => "Stok tanggal {$date} sudah ditutup (opname sudah dikirim) atau di masa depan. Minta revisi ke Admin Pusat bila ada koreksi."]);
+        }
     }
 
     private function ensureOpen(StockReport $report): void

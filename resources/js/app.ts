@@ -49,3 +49,21 @@ initializeTheme();
 
 // This will listen for flash toast data from the server...
 initializeFlashToast();
+
+// Cegah angka berubah tanpa sengaja: scroll mouse/trackpad dan tombol panah atas/bawah pada input number.
+// Wheel hanya mem-blur input yang sedang fokus sehingga halaman tetap bisa di-scroll.
+document.addEventListener(
+    'wheel',
+    (e) => {
+        const el = document.activeElement;
+        if (el instanceof HTMLInputElement && el.type === 'number' && e.target === el) el.blur();
+    },
+    { passive: true },
+);
+
+document.addEventListener('keydown', (e) => {
+    const el = e.target;
+    if (el instanceof HTMLInputElement && el.type === 'number' && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+        e.preventDefault();
+    }
+});

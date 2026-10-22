@@ -19,15 +19,9 @@ class StoreStockReportRequest extends FormRequest
         return [
             'report_date' => ['required', 'date_format:Y-m-d', 'before_or_equal:today'],
             'notes' => ['nullable', 'string', 'max:500'],
-            'items' => ['required', 'array', 'min:1'],
+            'items' => ['nullable', 'array', 'max:500'],
             'items.*.item_id' => ['required', 'integer', 'distinct', 'exists:items,id'],
-            'items.*.in_qty' => ['nullable', 'numeric', 'min:0', 'max:9999999'],
-            'items.*.out_qty' => ['nullable', 'numeric', 'min:0', 'max:9999999'],
-            'items.*.waste_qty' => ['nullable', 'numeric', 'min:0', 'max:9999999'],
             'items.*.physical_qty' => ['nullable', 'numeric', 'min:0', 'max:9999999'],
-            'items.*.in_unit_id' => ['nullable', 'integer', 'exists:units,id'],
-            'items.*.out_unit_id' => ['nullable', 'integer', 'exists:units,id'],
-            'items.*.waste_unit_id' => ['nullable', 'integer', 'exists:units,id'],
             'items.*.physical_unit_id' => ['nullable', 'integer', 'exists:units,id'],
             'items.*.note' => ['nullable', 'string', 'max:255'],
         ];

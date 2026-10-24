@@ -6,6 +6,8 @@ import {
     ClipboardList,
     Clock,
     FileSpreadsheet,
+    FileText,
+    HardHat,
     MapPin,
     Package,
     PackageCheck,
@@ -49,6 +51,13 @@ export const adminMenuGroups: AdminMenuGroup[] = [
             { href: '/cashflow-verifications', title: 'Verifikasi Setoran', desc: 'Cek bukti transfer', icon: CheckCircle2, tone: 'bg-purple-50 text-purple-600', badgeKey: 'pending_cashflows_count' },
             { href: '/cashflow-reports', title: 'Laporan Cashflow', desc: 'Harian & bulanan', icon: FileSpreadsheet, tone: 'bg-teal-50 text-teal-600' },
             { href: '/expense-reports', title: 'Laporan Pengeluaran', desc: 'Buku kas pengeluaran', icon: Receipt, tone: 'bg-orange-50 text-orange-600' },
+        ],
+    },
+    {
+        label: 'Proyek',
+        items: [
+            { href: '/projects', title: 'Proyek Lapangan', desc: 'RAB & progress renovasi', icon: HardHat, tone: 'bg-yellow-50 text-yellow-600' },
+            { href: '/settings/placement-template', title: 'Template Surat', desc: 'Surat penempatan kerja', icon: FileText, tone: 'bg-indigo-50 text-indigo-600' },
         ],
     },
     {

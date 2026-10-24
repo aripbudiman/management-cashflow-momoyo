@@ -19,7 +19,7 @@ const isMobile = useMediaQuery('(max-width: 767px)');
 </script>
 
 <template>
-    <StaffMobileLayout v-if="role === 'staff_cabang'">
+    <StaffMobileLayout v-if="role === 'staff_cabang' || role === 'kepala_toko'">
         <slot />
     </StaffMobileLayout>
     <AdminMobileLayout v-else-if="role === 'admin_pusat' && isMobile">

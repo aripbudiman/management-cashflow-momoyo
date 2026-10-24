@@ -36,7 +36,7 @@ class DashboardController extends Controller
         $roleName = $user->role?->name ?? 'staff_cabang';
 
         // Staff cabang yang punya profil karyawan memakai Beranda mobile khusus
-        if ($roleName === 'staff_cabang' && $user->employee) {
+        if ($user->isStaffCabang() && $user->employee) {
             return Inertia::render('StaffDashboard', app(StaffHomeService::class)->data($user->employee));
         }
 

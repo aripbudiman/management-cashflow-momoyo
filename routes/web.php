@@ -11,6 +11,12 @@ use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\ExpenseReportController;
 use App\Http\Controllers\ItemController;
 use App\Http\Controllers\LeaveRequestController;
+use App\Http\Controllers\ProjectController;
+use App\Http\Controllers\ProjectDocumentController;
+use App\Http\Controllers\ProjectPlacementController;
+use App\Http\Controllers\ProjectProgressController;
+use App\Http\Controllers\ProjectRabController;
+use App\Http\Controllers\ProjectTimelineController;
 use App\Http\Controllers\ScheduleController;
 use App\Http\Controllers\ShiftController;
 use App\Http\Controllers\StaffPortalController;
@@ -68,7 +74,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/attendance/clock-out', [AttendanceController::class, 'clockOut'])->name('attendance.clock-out');
 
     // Input Cashflow Harian (Staff Cabang)
-    Route::middleware(['role:staff_cabang'])->group(function () {
+    Route::middleware(['role:staff_cabang,kepala_toko'])->group(function () {
         // Portal mobile staff: jadwal & profil
         Route::get('/my-schedule', [StaffPortalController::class, 'schedule'])->name('staff.schedule');
 
@@ -82,7 +88,7 @@ Route::middleware(['auth'])->group(function () {
     });
 
     // Pantauan stok, kartu stok & daftar transfer (Staff = cabang sendiri, Admin Pusat = semua cabang)
-    Route::middleware(['role:staff_cabang,admin_pusat'])->group(function () {
+    Route::middleware(['role:staff_cabang,kepala_toko,admin_pusat'])->group(function () {
         // Stok harian: staff untuk cabangnya, admin pusat memilih cabang lalu input masuk/keluar
         Route::get('/stock-reports', [StockReportController::class, 'index'])->name('stock-reports.index');
         Route::post('/stock-transactions', [StockTransactionController::class, 'store'])->name('stock-transactions.store');
@@ -94,9 +100,51 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/stock-transfers/{transfer}/cancel', [StockTransferController::class, 'cancel'])->name('stock-transfers.cancel');
     });
 
+    // Monitoring Pekerjaan Lapangan (proyek renovasi/pembangunan outlet)
+    Route::middleware(['role:staff_cabang,kepala_toko,admin_pusat'])->group(function () {
+        Route::get('/projects', [ProjectController::class, 'index'])->name('projects.index');
+        Route::get('/projects/{project}', [ProjectController::class, 'show'])->whereNumber('project')->name('projects.show');
+        Route::get('/projects/{project}/export', [ProjectController::class, 'export'])->whereNumber('project')->name('projects.export');
+        Route::post('/work-items/{workItem}/progress', [ProjectProgressController::class, 'update'])->name('work-items.progress');
+        Route::get('/placements/{placement}/pdf', [ProjectPlacementController::class, 'pdf'])->name('placements.pdf');
+    });
+    Route::post('/progress-logs/{progressLog}/verify', [ProjectProgressController::class, 'verify'])
+        ->middleware('role:kepala_toko,admin_pusat')
+        ->name('progress-logs.verify');
+    Route::middleware(['role:admin_pusat'])->group(function () {
+        Route::post('/projects', [ProjectController::class, 'store'])->name('projects.store');
+        Route::put('/projects/{project}', [ProjectController::class, 'update'])->name('projects.update');
+        Route::post('/projects/{project}/cancel', [ProjectController::class, 'cancel'])->name('projects.cancel');
+        Route::delete('/projects/{project}', [ProjectController::class, 'destroy'])->name('projects.destroy');
+
+        Route::get('/rab/template', [ProjectRabController::class, 'template'])->name('rab.template');
+        Route::post('/projects/{project}/rab/import', [ProjectRabController::class, 'import'])->name('rab.import');
+        Route::post('/projects/{project}/rab/send', [ProjectRabController::class, 'send'])->name('rab.send');
+        Route::post('/projects/{project}/rab/revise', [ProjectRabController::class, 'revise'])->name('rab.revise');
+        Route::post('/projects/{project}/sections', [ProjectRabController::class, 'storeSection'])->name('sections.store');
+        Route::put('/sections/{section}', [ProjectRabController::class, 'updateSection'])->name('sections.update');
+        Route::delete('/sections/{section}', [ProjectRabController::class, 'destroySection'])->name('sections.destroy');
+        Route::post('/projects/{project}/items', [ProjectRabController::class, 'storeItem'])->name('work-items.store');
+        Route::put('/work-items/{workItem}', [ProjectRabController::class, 'updateItem'])->name('work-items.update');
+        Route::delete('/work-items/{workItem}', [ProjectRabController::class, 'destroyItem'])->name('work-items.destroy');
+
+        Route::post('/projects/{project}/placements', [ProjectPlacementController::class, 'store'])->name('placements.store');
+        Route::put('/projects/{project}/placements/{placement}', [ProjectPlacementController::class, 'update'])->name('placements.update');
+        Route::post('/placements/{placement}/issue', [ProjectPlacementController::class, 'issue'])->name('placements.issue');
+        Route::post('/placements/{placement}/cancel', [ProjectPlacementController::class, 'cancel'])->name('placements.cancel');
+        Route::post('/placements/{placement}/complete', [ProjectPlacementController::class, 'complete'])->name('placements.complete');
+        Route::delete('/placements/{placement}', [ProjectPlacementController::class, 'destroy'])->name('placements.destroy');
+
+        Route::post('/projects/{project}/timeline/generate', [ProjectTimelineController::class, 'generate'])->name('timeline.generate');
+        Route::put('/work-items/{workItem}/schedule', [ProjectTimelineController::class, 'updateItem'])->name('work-items.schedule');
+
+        Route::post('/projects/{project}/documents', [ProjectDocumentController::class, 'store'])->name('project-documents.store');
+        Route::delete('/project-documents/{document}', [ProjectDocumentController::class, 'destroy'])->name('project-documents.destroy');
+    });
+
     // Profil & logout versi mobile (staff cabang & admin pusat)
     Route::get('/my-profile', [StaffPortalController::class, 'profile'])
-        ->middleware('role:staff_cabang,admin_pusat')
+        ->middleware('role:staff_cabang,kepala_toko,admin_pusat')
         ->name('staff.profile');
 
     // Pengajuan Izin, Sakit, Cuti (karyawan mengajukan, admin pusat memutuskan)

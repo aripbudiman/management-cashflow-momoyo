@@ -170,7 +170,9 @@ const roleName = computed(
     () => currentUser.value?.role?.name || 'staff_cabang',
 );
 const isAdminPusat = computed(() => roleName.value === 'admin_pusat');
-const isStaffCabang = computed(() => roleName.value === 'staff_cabang');
+const isStaffCabang = computed(() =>
+    ['staff_cabang', 'kepala_toko'].includes(roleName.value),
+);
 // Admin pusat di layar kecil: Beranda versi mobile
 const isMobile = useMediaQuery('(max-width: 767px)');
 const isMobileAdmin = computed(() => isAdminPusat.value && isMobile.value);

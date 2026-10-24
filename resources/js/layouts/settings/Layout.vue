@@ -24,6 +24,11 @@ const allNavItems: (NavItem & { adminOnly?: boolean })[] = [
         href: '/settings/application',
         adminOnly: true,
     },
+    {
+        title: 'Template Surat',
+        href: '/settings/placement-template',
+        adminOnly: true,
+    },
 ];
 
 const page = usePage();

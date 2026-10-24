@@ -23,6 +23,11 @@ class RoleSeeder extends Seeder
                 'display_name' => 'Staff Cabang',
                 'description' => 'Akses operasional gerai cabang untuk absensi selfie GPS, closing kasir harian, kas kecil, dan perizinan.',
             ],
+            [
+                'name' => 'kepala_toko',
+                'display_name' => 'Kepala Toko',
+                'description' => 'Seperti Staff Cabang, ditambah verifikasi progress dan approval pengeluaran proyek di cabangnya.',
+            ],
         ];
 
         foreach ($roles as $role) {

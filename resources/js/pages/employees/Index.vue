@@ -279,6 +279,8 @@ const getRoleBadgeClass = (roleName?: string) => {
     switch (roleName) {
         case 'admin_pusat':
             return 'bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300 border-purple-300';
+        case 'kepala_toko':
+            return 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border-amber-300';
         case 'staff_cabang':
         default:
             return 'bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 border-rose-300';

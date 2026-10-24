@@ -105,9 +105,17 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
         return $this->hasRole('admin_pusat');
     }
 
+    /**
+     * Pengguna level cabang: Staff Cabang dan Kepala Toko (Kepala Toko mewarisi seluruh akses staff).
+     */
     public function isStaffCabang(): bool
     {
-        return $this->hasRole('staff_cabang');
+        return $this->hasRole(['staff_cabang', 'kepala_toko']);
+    }
+
+    public function isKepalaToko(): bool
+    {
+        return $this->hasRole('kepala_toko');
     }
 
     // Aliases untuk kompatibilitas kode

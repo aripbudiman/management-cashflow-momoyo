@@ -12,6 +12,7 @@ import {
     DollarSign,
     FileSpreadsheet,
     FileText,
+    HardHat,
     LayoutGrid,
     MapPin,
     Package,
@@ -46,7 +47,9 @@ const userRole = computed(
     () => page.props.auth.user?.role?.name || 'staff_cabang',
 );
 const isAdminPusat = computed(() => userRole.value === 'admin_pusat');
-const isStaffCabang = computed(() => userRole.value === 'staff_cabang');
+const isStaffCabang = computed(() =>
+    ['staff_cabang', 'kepala_toko'].includes(userRole.value),
+);
 </script>
 
 <template>
@@ -266,6 +269,34 @@ const isStaffCabang = computed(() => userRole.value === 'staff_cabang');
                             <Link href="/stock-verifications" class="flex items-center gap-2.5">
                                 <PackageCheck class="size-4 text-sky-500" />
                                 <span class="text-sm font-medium">Verifikasi Stok</span>
+                            </Link>
+                        </SidebarMenuButton>
+                    </SidebarMenuItem>
+                </SidebarMenu>
+            </SidebarGroup>
+
+            <!-- GROUP: Proyek Lapangan (semua role) -->
+            <SidebarGroup class="py-1">
+                <SidebarGroupLabel
+                    class="text-[11px] font-bold tracking-wider text-muted-foreground/70 uppercase"
+                >
+                    Proyek
+                </SidebarGroupLabel>
+                <SidebarMenu>
+                    <SidebarMenuItem>
+                        <SidebarMenuButton
+                            as-child
+                            :is-active="isCurrentUrl('/projects')"
+                            tooltip="Monitoring Pekerjaan Lapangan"
+                        >
+                            <Link
+                                href="/projects"
+                                class="flex items-center gap-2.5"
+                            >
+                                <HardHat class="size-4 text-yellow-500" />
+                                <span class="text-sm font-medium"
+                                    >Proyek Lapangan</span
+                                >
                             </Link>
                         </SidebarMenuButton>
                     </SidebarMenuItem>

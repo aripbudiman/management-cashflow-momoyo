@@ -1,6 +1,6 @@
 export type Role = {
     id: number;
-    name: 'admin_pusat' | 'staff_cabang';
+    name: 'admin_pusat' | 'staff_cabang' | 'kepala_toko';
     display_name: string;
     description?: string;
 };

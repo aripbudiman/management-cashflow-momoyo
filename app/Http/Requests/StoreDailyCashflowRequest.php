@@ -23,6 +23,7 @@ class StoreDailyCashflowRequest extends FormRequest
             'wallets' => ['required', 'array'],
             'expenses' => ['nullable', 'array', 'max:50'],
             'expenses.*.description' => ['required', 'string', 'max:255'],
+            'expenses.*.stock_transaction_id' => ['nullable', 'integer'],
             'expenses.*.nominal' => ['required', 'numeric', 'min:1', 'max:999999999'],
             'expenses.*.photos' => ['nullable', 'array', 'max:5'],
             'expenses.*.photos.*' => ['file', 'mimes:jpg,jpeg,png,webp', 'max:5120'],

@@ -6,6 +6,7 @@ use App\Http\Requests\SaveProjectRequest;
 use App\Models\Branch;
 use App\Models\Employee;
 use App\Models\Project;
+use App\Models\ProjectExpense;
 use App\Models\ProjectPlacement;
 use App\Repositories\ProjectRepository;
 use App\Services\PlacementService;
@@ -67,6 +68,9 @@ class ProjectController extends Controller
             'pics' => $request->user()->isAdminPusat()
                 ? Employee::where('status', 'active')->where('current_branch_id', $project->branch_id)->orderBy('full_name')->get(['id', 'full_name'])
                 : [],
+            'expenses' => $user->isAdminPusat() ? $project->expenses()->with(['creator:id,name', 'proofs'])->latest('expense_date')->latest('id')->get() : [],
+            'profit' => $user->isAdminPusat() ? $this->service->profitSummary($project) : null,
+            'expenseCategories' => ProjectExpense::CATEGORIES,
             'canManage' => $request->user()->isAdminPusat(),
             'canVerify' => $request->user()->isAdminPusat() || $request->user()->isKepalaToko(),
         ]);

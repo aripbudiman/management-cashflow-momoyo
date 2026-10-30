@@ -5,6 +5,7 @@ use App\Http\Controllers\AttendanceRecapController;
 use App\Http\Controllers\BranchController;
 use App\Http\Controllers\CashflowReportController;
 use App\Http\Controllers\CashflowVerificationController;
+use App\Http\Controllers\CentralExpenseController;
 use App\Http\Controllers\DailyCashflowController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EmployeeController;
@@ -13,6 +14,7 @@ use App\Http\Controllers\ItemController;
 use App\Http\Controllers\LeaveRequestController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ProjectDocumentController;
+use App\Http\Controllers\ProjectExpenseController;
 use App\Http\Controllers\ProjectPlacementController;
 use App\Http\Controllers\ProjectProgressController;
 use App\Http\Controllers\ProjectRabController;
@@ -139,6 +141,9 @@ Route::middleware(['auth'])->group(function () {
         Route::put('/work-items/{workItem}/schedule', [ProjectTimelineController::class, 'updateItem'])->name('work-items.schedule');
 
         Route::post('/projects/{project}/documents', [ProjectDocumentController::class, 'store'])->name('project-documents.store');
+        Route::post('/projects/{project}/expenses', [ProjectExpenseController::class, 'store'])->name('project-expenses.store');
+        Route::put('/project-expenses/{expense}', [ProjectExpenseController::class, 'update'])->name('project-expenses.update');
+        Route::delete('/project-expenses/{expense}', [ProjectExpenseController::class, 'destroy'])->name('project-expenses.destroy');
         Route::delete('/project-documents/{document}', [ProjectDocumentController::class, 'destroy'])->name('project-documents.destroy');
     });
 
@@ -147,11 +152,25 @@ Route::middleware(['auth'])->group(function () {
         ->middleware('role:staff_cabang,kepala_toko,admin_pusat')
         ->name('staff.profile');
 
-    // Pengajuan Izin, Sakit, Cuti (karyawan mengajukan, admin pusat memutuskan)
+    // Shift & jadwal mingguan: Kepala Toko menyusun untuk cabangnya, Admin Pusat hanya memantau (GET)
+    Route::middleware(['role:kepala_toko,admin_pusat'])->group(function () {
+        Route::get('/attendance-recap', [AttendanceRecapController::class, 'index'])->name('attendance-recap.index');
+        Route::get('/shifts', [ShiftController::class, 'index'])->name('shifts.index');
+        Route::get('/schedules', [ScheduleController::class, 'index'])->name('schedules.index');
+    });
+    Route::middleware(['role:kepala_toko'])->group(function () {
+        Route::post('/shifts', [ShiftController::class, 'store'])->name('shifts.store');
+        Route::put('/shifts/{shift}', [ShiftController::class, 'update'])->name('shifts.update');
+        Route::delete('/shifts/{shift}', [ShiftController::class, 'destroy'])->name('shifts.destroy');
+        Route::post('/schedules', [ScheduleController::class, 'store'])->name('schedules.store');
+        Route::post('/schedules/copy-week', [ScheduleController::class, 'copyWeek'])->name('schedules.copy-week');
+    });
+
+    // Pengajuan Izin, Sakit, Cuti (karyawan mengajukan, Kepala Toko menyetujui staff cabangnya, Admin Pusat menyetujui Kepala Toko)
     Route::get('/leaves', [LeaveRequestController::class, 'index'])->name('leaves.index');
     Route::post('/leaves', [LeaveRequestController::class, 'store'])->name('leaves.store');
     Route::delete('/leaves/{leave}', [LeaveRequestController::class, 'destroy'])->name('leaves.destroy');
-    Route::middleware(['role:admin_pusat'])->group(function () {
+    Route::middleware(['role:kepala_toko,admin_pusat'])->group(function () {
         Route::post('/leaves/{leave}/approve', [LeaveRequestController::class, 'approve'])->name('leaves.approve');
         Route::post('/leaves/{leave}/reject', [LeaveRequestController::class, 'reject'])->name('leaves.reject');
     });
@@ -166,6 +185,12 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/cashflow-verifications/{cashflow}/verify', [CashflowVerificationController::class, 'verify'])->name('cashflow-verifications.verify');
         Route::post('/cashflow-verifications/{cashflow}/revise', [CashflowVerificationController::class, 'revise'])->name('cashflow-verifications.revise');
         Route::get('/expense-reports', [ExpenseReportController::class, 'index'])->name('expense-reports.index');
+        // Pengeluaran pusat & saldo kas per cabang
+        Route::get('/central-expenses', [CentralExpenseController::class, 'index'])->name('central-expenses.index');
+        Route::post('/central-expenses', [CentralExpenseController::class, 'store'])->name('central-expenses.store');
+        Route::put('/central-expenses/{centralExpense}', [CentralExpenseController::class, 'update'])->name('central-expenses.update');
+        Route::delete('/central-expenses/{centralExpense}', [CentralExpenseController::class, 'destroy'])->name('central-expenses.destroy');
+        Route::put('/branches/{branch}/opening-balance', [CentralExpenseController::class, 'updateOpeningBalance'])->name('branches.opening-balance');
         Route::get('/cashflow-reports', [CashflowReportController::class, 'index'])->name('cashflow-reports.index');
 
         // Master barang (SSOT harga) & verifikasi stok harian
@@ -177,10 +202,6 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/stock-verifications/{report}/revise', [StockVerificationController::class, 'revise'])->name('stock-verifications.revise');
 
         // Shift, jadwal & hari libur karyawan, rekap kehadiran
-        Route::resource('shifts', ShiftController::class)->only(['index', 'store', 'update', 'destroy']);
-        Route::get('/schedules', [ScheduleController::class, 'index'])->name('schedules.index');
-        Route::post('/schedules', [ScheduleController::class, 'store'])->name('schedules.store');
-        Route::get('/attendance-recap', [AttendanceRecapController::class, 'index'])->name('attendance-recap.index');
     });
 });
 

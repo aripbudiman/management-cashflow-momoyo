@@ -83,6 +83,7 @@ class AttendanceRecapService
                 'late' => $att->where('status', 'terlambat')->count(),
                 'alpha' => $alpha,
                 'leave_days' => count($leavesByEmp[$e->id] ?? []),
+                'work_minutes' => $this->workMinutes($att),
                 'days' => $this->dailyDetail($sch, $att, $leavesByEmp[$e->id] ?? [], $today),
             ];
         })->values();
@@ -96,8 +97,29 @@ class AttendanceRecapService
                 'late' => (int) $rows->sum('late'),
                 'alpha' => (int) $rows->sum('alpha'),
                 'leave_days' => (int) $rows->sum('leave_days'),
+                'work_minutes' => (int) $rows->sum('work_minutes'),
             ],
         ];
+    }
+
+    /**
+     * Total menit kerja dari absensi yang lengkap (ada clock in & clock out). Absen tanpa clock out tidak dihitung.
+     *
+     * @param  Collection<int, Attendance>  $attendances
+     */
+    private function workMinutes(Collection $attendances): int
+    {
+        return (int) $attendances->sum(function ($a): int {
+            if (! $a->clock_in_time || ! $a->clock_out_time) {
+                return 0;
+            }
+
+            $in = Carbon::parse($a->clock_in_time);
+            $out = Carbon::parse($a->clock_out_time);
+
+            // Shift lewat tengah malam: clock out lebih kecil dari clock in
+            return (int) max(0, $out->lessThan($in) ? $out->addDay()->diffInMinutes($in, true) : $in->diffInMinutes($out, true));
+        });
     }
 
     /**

@@ -17,6 +17,7 @@ class Branch extends Model
         'latitude',
         'longitude',
         'radius_meters',
+        'opening_balance',
         'is_active',
     ];
 
@@ -26,6 +27,7 @@ class Branch extends Model
             'latitude' => 'float',
             'longitude' => 'float',
             'radius_meters' => 'integer',
+            'opening_balance' => 'float',
             'is_active' => 'boolean',
         ];
     }

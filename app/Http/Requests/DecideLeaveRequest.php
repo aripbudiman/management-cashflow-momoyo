@@ -8,7 +8,9 @@ class DecideLeaveRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return (bool) $this->user()?->isAdminPusat();
+        $leave = $this->route('leave');
+
+        return $leave !== null && $leave->isDecidableBy($this->user());
     }
 
     /**

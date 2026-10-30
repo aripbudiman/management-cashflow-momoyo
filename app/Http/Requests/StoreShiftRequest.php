@@ -8,7 +8,7 @@ class StoreShiftRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return (bool) $this->user()?->isAdminPusat();
+        return (bool) $this->user()?->managesBranch((int) $this->input('branch_id'));
     }
 
     /**

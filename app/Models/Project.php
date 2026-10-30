@@ -68,6 +68,11 @@ class Project extends Model
         return $this->hasMany(ProjectDocument::class);
     }
 
+    public function expenses(): HasMany
+    {
+        return $this->hasMany(ProjectExpense::class);
+    }
+
     public function rabVersions(): HasMany
     {
         return $this->hasMany(RabVersion::class);

@@ -10,9 +10,12 @@ use Illuminate\Validation\Validator;
 
 class SyncScheduleRequest extends FormRequest
 {
+    /**
+     * Hanya Kepala Toko yang menyusun jadwal, dan hanya untuk cabangnya sendiri.
+     */
     public function authorize(): bool
     {
-        return (bool) $this->user()?->isAdminPusat();
+        return (bool) $this->user()?->managesBranch((int) $this->input('branch_id'));
     }
 
     /**
@@ -22,8 +25,8 @@ class SyncScheduleRequest extends FormRequest
     {
         return [
             'branch_id' => ['required', 'integer', 'exists:branches,id'],
-            'month' => ['required', 'date_format:Y-m'],
-            'entries' => ['required', 'array', 'min:1', 'max:3000'],
+            'week' => ['required', 'date_format:Y-m-d'],
+            'entries' => ['required', 'array', 'min:1', 'max:500'],
             'entries.*.employee_id' => ['required', 'integer', 'exists:employees,id'],
             'entries.*.date' => ['required', 'date_format:Y-m-d'],
             'entries.*.type' => ['nullable', 'in:shift,off'],
@@ -42,11 +45,23 @@ class SyncScheduleRequest extends FormRequest
             }
 
             $branchId = (int) $this->input('branch_id');
-            $month = $this->input('month');
+            $weekStart = Carbon::parse($this->input('week'))->startOfDay();
             $entries = collect($this->input('entries'));
 
-            if ($entries->contains(fn ($e) => ! str_starts_with($e['date'], $month))) {
-                $validator->errors()->add('entries', 'Ada tanggal di luar bulan yang dipilih.');
+            if (! $weekStart->isMonday()) {
+                $validator->errors()->add('week', 'Minggu harus dimulai hari Senin.');
+
+                return;
+            }
+
+            $weekEnd = $weekStart->copy()->addDays(6)->toDateString();
+            if ($entries->contains(fn ($e) => $e['date'] < $weekStart->toDateString() || $e['date'] > $weekEnd)) {
+                $validator->errors()->add('entries', 'Ada tanggal di luar minggu yang dipilih.');
+            }
+
+            // Tanggal yang sudah lewat sudah terpakai (absensi & rekap), tidak boleh diubah
+            if ($entries->contains(fn ($e) => $e['date'] < Carbon::today()->toDateString())) {
+                $validator->errors()->add('entries', 'Jadwal tanggal yang sudah lewat tidak bisa diubah.');
             }
 
             $validShiftIds = Shift::where('branch_id', $branchId)->pluck('id');
@@ -61,10 +76,5 @@ class SyncScheduleRequest extends FormRequest
                 $validator->errors()->add('entries', 'Ada karyawan yang tidak aktif di cabang ini.');
             }
         }];
-    }
-
-    public function month(): Carbon
-    {
-        return Carbon::createFromFormat('Y-m-d', $this->input('month').'-01')->startOfDay();
     }
 }

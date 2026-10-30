@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
+import { rupiah } from '@/lib/format';
 import {
     AlertCircle,
     ArrowDownRight,
@@ -61,6 +62,7 @@ const props = defineProps<{
             late: number;
         };
     };
+    branchBalances?: { rows: Array<{ branch_id: number; branch_name: string; balance: number }>; total_balance: number } | null;
     pendingSetoran?: Array<{
         id: number;
         branch_id: number;
@@ -271,6 +273,7 @@ const closePreview = () => {
         :name="currentUser?.name ?? ''"
         :date-label="todayDateFormatted"
         :metrics="metrics"
+        :branch-balances="branchBalances"
         :employee="userEmployee"
         :attendance="userAttendance"
         @punch="(m) => (m === 'clock_in' ? openClockIn() : openClockOut())"
@@ -861,6 +864,29 @@ const closePreview = () => {
                 </CardContent>
             </Card>
         </div>
+
+        <!-- SALDO KAS PER CABANG -->
+        <Card v-if="isAdminPusat && branchBalances" class="border-gray-200 shadow-md dark:border-zinc-800">
+            <CardHeader class="border-b border-gray-100 pb-3 dark:border-zinc-800">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <CardTitle class="text-base font-bold">Saldo Kas per Cabang</CardTitle>
+                        <CardDescription class="text-xs">Saldo awal + setoran terverifikasi − pengeluaran pusat</CardDescription>
+                    </div>
+                    <Link href="/central-expenses" class="text-xs font-bold text-rose-600 hover:underline">Kelola →</Link>
+                </div>
+            </CardHeader>
+            <CardContent class="grid gap-3 pt-4 sm:grid-cols-2 lg:grid-cols-4">
+                <div v-for="b in branchBalances.rows" :key="b.branch_id" class="rounded-2xl border p-4">
+                    <div class="text-xs font-semibold text-gray-500">{{ b.branch_name }}</div>
+                    <div class="mt-1 font-mono text-lg font-black" :class="b.balance < 0 ? 'text-red-600' : 'text-gray-900 dark:text-white'">{{ rupiah(b.balance) }}</div>
+                </div>
+                <div class="rounded-2xl bg-rose-50 p-4 dark:bg-rose-950/30">
+                    <div class="text-xs font-semibold text-rose-700">Total Semua Cabang</div>
+                    <div class="mt-1 font-mono text-lg font-black text-rose-700">{{ rupiah(branchBalances.total_balance) }}</div>
+                </div>
+            </CardContent>
+        </Card>
 
         <!-- B. KHUSUS ADMIN PUSAT: WIDGET REKONSILIASI SETORAN BANK & MULTI-CABANG -->
         <div v-if="isAdminPusat" id="reconciliation-section" class="space-y-6">

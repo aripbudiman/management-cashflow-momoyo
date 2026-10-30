@@ -5,11 +5,15 @@ namespace App\Services;
 use App\Models\Branch;
 use App\Models\DailyCashflow;
 use App\Repositories\CashflowRepository;
+use App\Repositories\CentralExpenseRepository;
 use Carbon\Carbon;
 
 class CashflowReportService
 {
-    public function __construct(private readonly CashflowRepository $cashflows) {}
+    public function __construct(
+        private readonly CashflowRepository $cashflows,
+        private readonly CentralExpenseRepository $centralExpenses,
+    ) {}
 
     /**
      * Laporan harian dalam satu bulan (format seperti sheet bulanan). $branchId kosong/0 = semua cabang.
@@ -42,8 +46,9 @@ class CashflowReportService
     public function monthly(Carbon $month): array
     {
         $items = $this->cashflows->betweenWithDetails($month->copy()->startOfMonth(), $month->copy()->endOfMonth())->groupBy('branch_id');
+        $central = $this->centralExpenses->totalsByBranchBetween($month->copy()->startOfMonth(), $month->copy()->endOfMonth());
 
-        $rows = Branch::orderBy('branch_name')->get(['id', 'branch_name'])->map(function (Branch $b) use ($items) {
+        $rows = Branch::orderBy('branch_name')->get(['id', 'branch_name'])->map(function (Branch $b) use ($items, $central) {
             $list = $items->get($b->id, collect());
             $rows = $list->map(fn (DailyCashflow $c) => [
                 'wallets' => $this->walletMap($c),
@@ -57,11 +62,17 @@ class CashflowReportService
                 'branch_name' => $b->branch_name,
                 'days' => $list->count(),
                 'verified_days' => $list->where('status', 'verified_by_finance')->count(),
+                'central_expense' => (float) $central->get($b->id, 0),
                 ...$this->sum($rows),
             ];
         })->values()->all();
 
-        return ['rows' => $rows, 'totals' => $this->sum($rows)];
+        $totals = $this->sum($rows);
+        $totals['central_expense'] = array_sum(array_column($rows, 'central_expense'));
+        // Dibayar langsung dari uang bos: bukan potongan kas cabang, tapi tetap biaya usaha
+        $totals['owner_expense'] = (float) $central->get(0, 0);
+
+        return ['rows' => $rows, 'totals' => $totals];
     }
 
     /**

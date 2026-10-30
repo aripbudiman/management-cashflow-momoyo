@@ -14,6 +14,7 @@ class CashflowExpense extends Model
 
     protected $fillable = [
         'cashflow_id',
+        'stock_transaction_id',
         'category',
         'nominal',
         'description',

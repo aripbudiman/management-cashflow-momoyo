@@ -4,6 +4,8 @@ import { ArrowLeft, Ban, Check, Download, Lock, Pencil, Trash2 } from '@lucide/v
 import { computed, ref } from 'vue';
 import ProjectDocumentsTab from '@/components/projects/ProjectDocumentsTab.vue';
 import ProjectEditDialog from '@/components/projects/ProjectEditDialog.vue';
+import ProjectExpensesTab from '@/components/projects/ProjectExpensesTab.vue';
+import type { ProfitSummary, ProjectExpense } from '@/components/projects/ProjectExpensesTab.vue';
 import ProjectPlacementsTab from '@/components/projects/ProjectPlacementsTab.vue';
 import ProjectProgressTab from '@/components/projects/ProjectProgressTab.vue';
 import ProjectRabTab from '@/components/projects/ProjectRabTab.vue';
@@ -25,11 +27,14 @@ const props = defineProps<{
     milestones: Milestone[];
     employees: EmployeeOption[];
     signerDefaults: { nama: string | null; jabatan: string | null } | null;
+    expenses: ProjectExpense[];
+    profit: ProfitSummary | null;
+    expenseCategories: string[];
     canManage: boolean;
     canVerify: boolean;
 }>();
 
-type Tab = 'ringkasan' | 'rab' | 'penempatan' | 'progress' | 'timeline' | 'dokumen';
+type Tab = 'ringkasan' | 'rab' | 'penempatan' | 'progress' | 'timeline' | 'pengeluaran' | 'dokumen';
 // Progress baru terbuka setelah RAB dikirim dan surat penempatan terbit (proyek yang sudah berjalan tidak terkunci)
 const progressLocked = computed(() => props.project.status === 'draft' || (props.project.status === 'rab_dikirim' && !props.hasPlacement));
 const lockMessage = computed(() =>
@@ -38,14 +43,16 @@ const lockMessage = computed(() =>
         : 'Progress kerja baru bisa diisi setelah surat penempatan kerja diterbitkan. Buat dan terbitkan surat di tab Penempatan.',
 );
 const tab = ref<Tab>(props.project.status === 'draft' ? 'rab' : props.project.status === 'rab_dikirim' && !props.hasPlacement ? 'penempatan' : 'progress');
-const tabs: { key: Tab; label: string }[] = [
+// Tab Pengeluaran (dan keuntungan bersih) hanya untuk Admin Pusat
+const tabs = computed<{ key: Tab; label: string }[]>(() => [
     { key: 'ringkasan', label: 'Ringkasan' },
     { key: 'rab', label: 'RAB' },
     { key: 'penempatan', label: 'Penempatan' },
     { key: 'progress', label: 'Progress' },
     { key: 'timeline', label: 'Timeline' },
+    ...(props.canManage ? [{ key: 'pengeluaran' as Tab, label: 'Pengeluaran' }] : []),
     { key: 'dokumen', label: 'Dokumen' },
-];
+]);
 
 // Alur proyek sesuai flowchart client; langkah bertanda soon belum dibangun.
 const steps = computed(() => {
@@ -158,6 +165,7 @@ const remove = () => {
                 <div><div class="text-xs text-gray-500">PIC Proyek</div>{{ project.pic?.full_name || '-' }}</div>
                 <div><div class="text-xs text-gray-500">Luas Area</div>{{ project.luas_m2 ? `${project.luas_m2} m²` : '-' }}</div>
                 <div><div class="text-xs text-gray-500">Nilai Kontrak</div>{{ rupiah(project.nilai_kontrak) }}</div>
+                <div v-if="profit"><div class="text-xs text-gray-500">Keuntungan Bersih (setelah pengeluaran {{ rupiah(profit.total_expense) }})</div><b :class="profit.net_profit < 0 ? 'text-red-600' : 'text-emerald-600'">{{ rupiah(profit.net_profit) }}</b> <span class="text-xs text-gray-400">· margin {{ profit.margin }}%</span></div>
                 <div><div class="text-xs text-gray-500">Jadwal Rencana</div>{{ project.tgl_mulai_rencana ? fmtDate(project.tgl_mulai_rencana) : '-' }} s/d {{ project.tgl_selesai_rencana ? fmtDate(project.tgl_selesai_rencana) : '-' }}</div>
                 <div><div class="text-xs text-gray-500">Total RAB (v{{ rab?.versi ?? 1 }})</div>{{ rupiah(rabTotal) }}</div>
                 <div><div class="text-xs text-gray-500">Cara Hitung Progress</div>{{ project.progress_mode === 'weighted' ? 'Berbobot nilai RAB' : 'Rata-rata sederhana' }}</div>
@@ -175,6 +183,7 @@ const remove = () => {
         <ProjectPlacementsTab v-else-if="tab === 'penempatan'" :project="project" :placements="placements" :recaps="recaps" :employees="employees" :signer-defaults="signerDefaults" :can-manage="canManage" />
         <ProjectTimelineTab v-else-if="tab === 'timeline'" :project="project" :sections="sections" :milestones="milestones" :can-manage="canManage" />
         <ProjectProgressTab v-else-if="tab === 'progress'" :project="project" :sections="sections" :logs="logs" :can-verify="canVerify" />
+        <ProjectExpensesTab v-else-if="tab === 'pengeluaran' && profit" :project="project" :expenses="expenses" :profit="profit" :categories="expenseCategories" />
         <ProjectDocumentsTab v-else :project="project" :can-manage="canManage" />
 
         <ProjectEditDialog v-if="canManage" v-model:open="editOpen" :project="project" :pics="pics" />

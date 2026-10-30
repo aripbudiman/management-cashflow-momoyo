@@ -18,5 +18,10 @@ class DatabaseSeeder extends Seeder
             CompanyBankAccountSeeder::class,
             UserAndEmployeeSeeder::class,
         ]);
+
+        // Akun uji tiap role, hanya di lingkungan non-production
+        if (! app()->isProduction()) {
+            $this->call(TestAccountSeeder::class);
+        }
     }
 }

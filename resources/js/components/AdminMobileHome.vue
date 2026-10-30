@@ -17,6 +17,7 @@ const props = defineProps<{
         pending_leaves_count?: number;
         pending_stock_reports_count?: number;
     };
+    branchBalances?: { rows: Array<{ branch_id: number; branch_name: string; balance: number }>; total_balance: number } | null;
     employee?: { full_name: string; face_photo_url: string | null; is_face_registered: boolean } | null;
     attendance?: { clock_in_time: string | null; clock_out_time: string | null } | null;
 }>();
@@ -63,6 +64,18 @@ const tasks = computed(() => [
                     <div class="flex items-center justify-between"><span class="text-sm text-gray-500">Total Pemasukan</span><b class="font-mono text-gray-900 dark:text-white">{{ rupiah(metrics.total_omset_today) }}</b></div>
                     <div class="flex items-center justify-between"><span class="text-sm text-gray-500">Total Pengeluaran</span><b class="font-mono text-gray-900 dark:text-white">{{ rupiah(metrics.total_expense_today) }}</b></div>
                     <div class="flex items-center justify-between border-t pt-2.5"><span class="text-sm font-semibold">Laba Bersih</span><b class="font-mono text-lg" :class="laba < 0 ? 'text-red-600' : 'text-emerald-600'">{{ rupiah(laba) }}</b></div>
+                </div>
+            </section>
+
+            <!-- SALDO KAS PER CABANG -->
+            <section v-if="branchBalances" class="rounded-3xl bg-white p-5 shadow-sm dark:bg-zinc-900">
+                <div class="mb-3 flex items-center justify-between">
+                    <h2 class="text-xs font-black tracking-wider text-gray-400 uppercase">Saldo Kas Cabang</h2>
+                    <Link href="/central-expenses" class="text-[11px] font-bold text-rose-600">Kelola</Link>
+                </div>
+                <div class="space-y-2">
+                    <div v-for="b in branchBalances.rows" :key="b.branch_id" class="flex items-center justify-between text-sm"><span class="text-gray-500">{{ b.branch_name }}</span><b class="font-mono" :class="b.balance < 0 ? 'text-red-600' : ''">{{ rupiah(b.balance) }}</b></div>
+                    <div class="flex items-center justify-between border-t pt-2"><span class="text-sm font-semibold">Total</span><b class="font-mono" :class="branchBalances.total_balance < 0 ? 'text-red-600' : 'text-emerald-600'">{{ rupiah(branchBalances.total_balance) }}</b></div>
                 </div>
             </section>
 

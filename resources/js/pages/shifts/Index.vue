@@ -27,6 +27,7 @@ interface ShiftRow {
 const props = defineProps<{
     branches: Array<{ id: number; branch_code: string; branch_name: string }>;
     branchId: number;
+    canEdit: boolean;
     shifts: ShiftRow[];
 }>();
 
@@ -87,17 +88,18 @@ const remove = (s: ShiftRow) => {
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
                 <h1 class="text-2xl font-black tracking-tight text-gray-900 dark:text-white">Master Shift</h1>
-                <p class="text-sm text-gray-500">Jam kerja shift per cabang. Dipakai saat menyusun jadwal karyawan.</p>
+                <p class="text-sm text-gray-500">{{ canEdit ? 'Jam kerja shift cabang Anda. Dipakai saat menyusun jadwal mingguan.' : 'Mode pantau: shift diatur oleh Kepala Toko masing-masing cabang.' }}</p>
             </div>
             <div class="flex items-center gap-2">
                 <select
+                    v-if="branches.length > 1"
                     :value="branchId"
                     class="h-9 rounded-md border border-gray-200 bg-white px-3 text-sm dark:border-zinc-700 dark:bg-zinc-900"
                     @change="changeBranch"
                 >
                     <option v-for="b in branches" :key="b.id" :value="b.id">{{ b.branch_name }}</option>
                 </select>
-                <Button class="gap-1.5" @click="openCreate"><Plus class="size-4" /> Tambah Shift</Button>
+                <Button v-if="canEdit" class="gap-1.5" @click="openCreate"><Plus class="size-4" /> Tambah Shift</Button>
             </div>
         </div>
 
@@ -120,7 +122,7 @@ const remove = (s: ShiftRow) => {
                                 {{ s.late_tolerance_minutes }} menit
                             </div>
                         </div>
-                        <div class="flex gap-1">
+                        <div v-if="canEdit" class="flex gap-1">
                             <Button size="icon" variant="ghost" @click="openEdit(s)"><Edit3 class="size-4" /></Button>
                             <Button size="icon" variant="ghost" class="text-rose-500" @click="remove(s)">
                                 <Trash2 class="size-4" />

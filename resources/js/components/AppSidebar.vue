@@ -7,6 +7,7 @@ import {
     CheckCircle2,
     CalendarDays,
     ClipboardList,
+    Landmark,
     Receipt,
     Clock,
     DollarSign,
@@ -237,6 +238,24 @@ const isStaffCabang = computed(() =>
                                 <FileSpreadsheet class="size-4 text-teal-500" />
                                 <span class="text-sm font-medium"
                                     >Laporan Cashflow</span
+                                >
+                            </Link>
+                        </SidebarMenuButton>
+                    </SidebarMenuItem>
+
+                    <SidebarMenuItem>
+                        <SidebarMenuButton
+                            as-child
+                            :is-active="isCurrentUrl('/central-expenses')"
+                            tooltip="Pengeluaran Pusat & Saldo Kas"
+                        >
+                            <Link
+                                href="/central-expenses"
+                                class="flex items-center gap-2.5"
+                            >
+                                <Landmark class="size-4 text-rose-500" />
+                                <span class="text-sm font-medium"
+                                    >Pengeluaran Pusat</span
                                 >
                             </Link>
                         </SidebarMenuButton>

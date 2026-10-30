@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Attendance;
 use App\Models\DailyCashflow;
 use App\Models\Employee;
+use App\Models\LeaveRequest;
 use App\Models\Shift;
 use App\Repositories\LeaveRequestRepository;
 use Carbon\Carbon;
@@ -62,6 +63,15 @@ class StaffHomeService
             ] : null,
             'todayLeave' => $leave ? (LeaveRequestService::TYPE_LABELS[$leave->type] ?? $leave->type) : null,
             'cashflow' => $branch ? $this->cashflowSummary($branch->id, $today) : null,
+            // Kepala Toko: ringkasan tugas pengelolaan cabang
+            'manager' => $employee->user?->isKepalaToko() ? [
+                'pending_leaves' => $branch
+                    ? LeaveRequest::where('branch_id', $branch->id)->where('status', 'pending')
+                        ->where('employee_id', '!=', $employee->id)
+                        ->whereDoesntHave('employee.user.role', fn ($q) => $q->where('name', 'kepala_toko'))
+                        ->count()
+                    : 0,
+            ] : null,
             'todayDate' => $today,
             'todayDateFormatted' => Carbon::today()->translatedFormat('l, d F Y'),
         ];

@@ -3,12 +3,13 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class UpdateShiftRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return (bool) $this->user()?->isAdminPusat();
+        return (bool) $this->user()?->managesBranch((int) $this->route('shift')?->branch_id);
     }
 
     /**
@@ -17,7 +18,8 @@ class UpdateShiftRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'branch_id' => ['required', 'integer', 'exists:branches,id'],
+            // Shift tidak boleh dipindah ke cabang lain
+            'branch_id' => ['required', 'integer', Rule::in([$this->route('shift')?->branch_id])],
             'shift_name' => ['required', 'string', 'max:50'],
             'start_time' => ['required', 'date_format:H:i'],
             'end_time' => ['required', 'date_format:H:i', 'different:start_time'],

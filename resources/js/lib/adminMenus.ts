@@ -8,6 +8,7 @@ import {
     FileSpreadsheet,
     FileText,
     HardHat,
+    Landmark,
     MapPin,
     Package,
     PackageCheck,
@@ -41,8 +42,8 @@ export const adminMenuGroups: AdminMenuGroup[] = [
         items: [
             { href: '/attendance', title: 'Absensi', desc: 'Absen & monitoring', icon: ScanFace, tone: 'bg-emerald-50 text-emerald-600' },
             { href: '/attendance-recap', title: 'Rekap Kehadiran', desc: 'Laporan per karyawan', icon: ClipboardList, tone: 'bg-purple-50 text-purple-600' },
-            { href: '/schedules', title: 'Jadwal Shift', desc: 'Shift & hari libur', icon: CalendarDays, tone: 'bg-blue-50 text-blue-600' },
-            { href: '/leaves', title: 'Izin, Sakit & Cuti', desc: 'Persetujuan pengajuan', icon: CalendarCheck, tone: 'bg-sky-50 text-sky-600', badgeKey: 'pending_leaves_count' },
+            { href: '/schedules', title: 'Jadwal Mingguan', desc: 'Pantau jadwal cabang', icon: CalendarDays, tone: 'bg-blue-50 text-blue-600' },
+            { href: '/leaves', title: 'Izin, Sakit & Cuti', desc: 'Pantau & setujui Kepala Toko', icon: CalendarCheck, tone: 'bg-sky-50 text-sky-600', badgeKey: 'pending_leaves_count' },
         ],
     },
     {
@@ -50,6 +51,7 @@ export const adminMenuGroups: AdminMenuGroup[] = [
         items: [
             { href: '/cashflow-verifications', title: 'Verifikasi Setoran', desc: 'Cek bukti transfer', icon: CheckCircle2, tone: 'bg-purple-50 text-purple-600', badgeKey: 'pending_cashflows_count' },
             { href: '/cashflow-reports', title: 'Laporan Cashflow', desc: 'Harian & bulanan', icon: FileSpreadsheet, tone: 'bg-teal-50 text-teal-600' },
+            { href: '/central-expenses', title: 'Pengeluaran Pusat', desc: 'Gaji & saldo kas cabang', icon: Landmark, tone: 'bg-rose-50 text-rose-600' },
             { href: '/expense-reports', title: 'Laporan Pengeluaran', desc: 'Buku kas pengeluaran', icon: Receipt, tone: 'bg-orange-50 text-orange-600' },
         ],
     },
@@ -74,7 +76,7 @@ export const adminMenuGroups: AdminMenuGroup[] = [
         items: [
             { href: '/employees', title: 'Master Karyawan', desc: 'Data & akun login', icon: Users, tone: 'bg-rose-50 text-rose-600' },
             { href: '/branches', title: 'Master Cabang', desc: 'Cabang & geofencing', icon: MapPin, tone: 'bg-emerald-50 text-emerald-600' },
-            { href: '/shifts', title: 'Master Shift', desc: 'Jam kerja shift', icon: Clock, tone: 'bg-amber-50 text-amber-600' },
+            { href: '/shifts', title: 'Shift Cabang', desc: 'Pantau jam shift', icon: Clock, tone: 'bg-amber-50 text-amber-600' },
             { href: '/items', title: 'Master Barang', desc: 'Barang & harga', icon: Package, tone: 'bg-orange-50 text-orange-600' },
             { href: '/units', title: 'Master Satuan', desc: 'Satuan & konversi', icon: Ruler, tone: 'bg-pink-50 text-pink-600' },
             { href: '/settings/application', title: 'Pengaturan Aplikasi', desc: 'Nama & icon aplikasi', icon: Settings, tone: 'bg-gray-100 text-gray-600' },

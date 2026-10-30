@@ -11,6 +11,7 @@ use App\Models\LeaveRequest;
 use App\Models\SetoranTransfer;
 use App\Models\Shift;
 use App\Models\StockReport;
+use App\Services\CentralExpenseService;
 use App\Services\StaffHomeService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -127,7 +128,7 @@ class DashboardController extends Controller
                 'total_net_cash_today' => (float) $totalNetCashToday,
                 'pending_transfers_count' => $pendingTransfersCount,
                 'pending_cashflows_count' => $pendingCashflowsCount,
-                'pending_leaves_count' => $roleName === 'admin_pusat' ? LeaveRequest::where('status', 'pending')->count() : 0,
+                'pending_leaves_count' => $roleName === 'admin_pusat' ? LeaveRequest::where('status', 'pending')->whereHas('employee.user.role', fn ($q) => $q->where('name', 'kepala_toko'))->count() : 0,
                 'pending_stock_reports_count' => $roleName === 'admin_pusat' ? StockReport::where('status', 'submitted')->count() : 0,
                 'attendances_summary' => $attendancesSummary,
             ],
@@ -139,6 +140,7 @@ class DashboardController extends Controller
             'branches' => $branches,
             'todayCashflows' => $todayCashflows,
             'pendingSetoran' => $pendingSetoran,
+            'branchBalances' => $roleName === 'admin_pusat' ? app(CentralExpenseService::class)->balances() : null,
             'recentAttendances' => $todayAttendances,
             'bankAccounts' => $bankAccounts,
             'todayDateFormatted' => Carbon::now()->translatedFormat('l, d F Y'),

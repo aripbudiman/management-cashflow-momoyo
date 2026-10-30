@@ -118,6 +118,14 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
         return $this->hasRole('kepala_toko');
     }
 
+    /**
+     * Kepala Toko hanya mengelola (shift, jadwal, izin) cabang tempat ia ditugaskan.
+     */
+    public function managesBranch(int $branchId): bool
+    {
+        return $this->isKepalaToko() && (int) $this->employee?->current_branch_id === $branchId;
+    }
+
     // Aliases untuk kompatibilitas kode
     public function isOwner(): bool
     {

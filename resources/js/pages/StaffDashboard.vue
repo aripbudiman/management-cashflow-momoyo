@@ -7,6 +7,7 @@ import {
     CalendarCheck,
     CalendarDays,
     CheckCircle2,
+    ClipboardList,
     Clock,
     HardHat,
     MapPin,
@@ -28,6 +29,7 @@ interface Props {
     todayAttendance: { clock_in_time: string | null; clock_out_time: string | null; status: string } | null;
     todaySchedule: { is_off: boolean; shift_name: string | null; start_time: string | null; end_time: string | null } | null;
     todayLeave: string | null;
+    manager: { pending_leaves: number } | null;
     cashflow: { status: string; total_omset: number; total_expense: number; total_setor: number; tunai: number; qris: number; lainnya: number } | null;
     todayDate: string;
     todayDateFormatted: string;
@@ -99,6 +101,14 @@ const cashflowStatus: Record<string, { label: string; cls: string }> = {
     verified_by_finance: { label: 'Terverifikasi', cls: 'bg-emerald-100 text-emerald-700' },
     revision_needed: { label: 'Perlu Revisi', cls: 'bg-red-100 text-red-700' },
 };
+
+// Menu pengelolaan cabang khusus Kepala Toko
+const managerMenus = computed(() => [
+    { href: '/schedules', title: 'Jadwal Mingguan', desc: 'Susun shift & libur tim', icon: CalendarDays, tone: 'bg-blue-50 text-blue-600', badge: 0 },
+    { href: '/leaves', title: 'Persetujuan Izin', desc: 'Izin, sakit & cuti staff', icon: CalendarCheck, tone: 'bg-sky-50 text-sky-600', badge: props.manager?.pending_leaves ?? 0 },
+    { href: '/shifts', title: 'Master Shift', desc: 'Jam kerja shift cabang', icon: Clock, tone: 'bg-amber-50 text-amber-600', badge: 0 },
+    { href: '/attendance-recap', title: 'Rekap Kehadiran', desc: 'Laporan tim bulanan', icon: ClipboardList, tone: 'bg-purple-50 text-purple-600', badge: 0 },
+]);
 
 const menus = [
     { href: '/attendance', title: 'Absensi Saya', desc: 'Log kehadiran & foto', icon: ScanFace, tone: 'bg-emerald-50 text-emerald-600' },
@@ -189,6 +199,21 @@ const menus = [
                 <button v-if="!employee.is_face_registered" type="button" class="mt-4 flex w-full items-center gap-2 rounded-2xl bg-rose-50 px-3 py-2.5 text-left text-xs font-semibold text-rose-700" @click="isFaceModalOpen = true">
                     <AlertCircle class="size-4 shrink-0" /> Face ID belum terdaftar — ketuk untuk mendaftarkan wajah
                 </button>
+            </section>
+
+            <!-- KELOLA CABANG (khusus Kepala Toko) -->
+            <section v-if="manager">
+                <h2 class="mb-3 text-sm font-black tracking-wide text-gray-800 uppercase dark:text-gray-200">Kelola Cabang</h2>
+                <div class="grid grid-cols-2 gap-3">
+                    <Link v-for="m in managerMenus" :key="m.href" :href="m.href" class="relative flex flex-col gap-2 rounded-3xl bg-white p-4 shadow-sm transition-transform active:scale-[0.98] dark:bg-zinc-900">
+                        <div class="flex size-11 items-center justify-center rounded-2xl" :class="m.tone"><component :is="m.icon" class="size-6" /></div>
+                        <div>
+                            <div class="text-[15px] leading-tight font-black text-gray-900 dark:text-white">{{ m.title }}</div>
+                            <div class="mt-0.5 text-xs leading-snug text-gray-500">{{ m.desc }}</div>
+                        </div>
+                        <span v-if="m.badge" class="absolute top-3 right-3 flex min-w-6 items-center justify-center rounded-full bg-rose-600 px-1.5 text-xs font-bold text-white">{{ m.badge }}</span>
+                    </Link>
+                </div>
             </section>
 
             <!-- MENU UTAMA -->

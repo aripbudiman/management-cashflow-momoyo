@@ -19,6 +19,7 @@ interface Leave {
     reason: string;
     status: 'pending' | 'approved' | 'rejected';
     approval_notes: string | null;
+    can_decide?: boolean;
     attachment_full_url: string | null;
     employee?: { full_name: string; nik: string };
     branch?: { branch_name: string } | null;
@@ -27,6 +28,7 @@ interface Leave {
 
 const props = defineProps<{
     isAdmin: boolean;
+    isMonitorOnly?: boolean;
     hasEmployee: boolean;
     typeLabels: Record<string, string>;
     myLeaves: Leave[];
@@ -113,7 +115,7 @@ const range = (l: Leave) => (l.start_date.slice(0, 10) === l.end_date.slice(0, 1
                 <CalendarCheck class="size-6 text-rose-500" /> Pengajuan Izin, Sakit & Cuti
             </h1>
             <p class="text-sm text-gray-500">
-                {{ isAdmin ? 'Tinjau dan putuskan pengajuan karyawan seluruh cabang.' : 'Ajukan ke Admin Pusat. Status bisa dipantau di bawah.' }}
+                {{ isMonitorOnly ? 'Mode pantau: pengajuan staff diputuskan Kepala Toko cabang; Anda hanya memutuskan pengajuan Kepala Toko.' : isAdmin ? 'Tinjau dan putuskan pengajuan staff di cabang Anda. Pengajuan Anda sendiri diputuskan Admin Pusat.' : 'Ajukan ke Kepala Toko. Status bisa dipantau di bawah.' }}
             </p>
         </div>
 
@@ -214,7 +216,7 @@ const range = (l: Leave) => (l.start_date.slice(0, 10) === l.end_date.slice(0, 1
                                 @keydown.enter="applyFilters()"
                             />
                         </div>
-                        <select :value="filters.branch_id ?? ''" :class="selectCls" @change="filter('branch_id', ($event.target as HTMLSelectElement).value)">
+                        <select v-if="branches.length" :value="filters.branch_id ?? ''" :class="selectCls" @change="filter('branch_id', ($event.target as HTMLSelectElement).value)">
                             <option value="">Semua Cabang Gerai</option>
                             <option v-for="b in branches" :key="b.id" :value="b.id">{{ b.branch_name }}</option>
                         </select>
@@ -291,7 +293,7 @@ const range = (l: Leave) => (l.start_date.slice(0, 10) === l.end_date.slice(0, 1
                                         <div v-if="l.approver" class="mt-0.5 text-[10px] text-gray-400">oleh {{ l.approver.name }}</div>
                                     </td>
                                     <td class="px-4 py-3.5 text-center">
-                                        <div v-if="l.status === 'pending'" class="inline-flex items-center gap-1">
+                                        <div v-if="l.status === 'pending' && l.can_decide" class="inline-flex items-center gap-1">
                                             <Button size="sm" class="h-8 gap-1 rounded-xl bg-emerald-600 text-xs font-semibold hover:bg-emerald-700" @click="openDecision(l, 'approve')">
                                                 <Check class="size-3.5" /> Setujui
                                             </Button>
@@ -299,6 +301,7 @@ const range = (l: Leave) => (l.start_date.slice(0, 10) === l.end_date.slice(0, 1
                                                 <X class="size-3.5" /> Tolak
                                             </Button>
                                         </div>
+                                        <span v-else-if="l.status === 'pending'" class="text-[11px] text-gray-400">{{ isMonitorOnly ? 'Dipantau (diputuskan Kepala Toko)' : 'Menunggu pihak lain' }}</span>
                                         <span v-else class="text-gray-300">-</span>
                                     </td>
                                 </tr>

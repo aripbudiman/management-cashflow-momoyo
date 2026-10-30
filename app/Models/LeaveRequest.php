@@ -58,6 +58,24 @@ class LeaveRequest extends Model
         return asset('storage/'.$this->attachment_url);
     }
 
+    /**
+     * Aturan persetujuan:
+     * - Kepala Toko memutuskan pengajuan staff di cabangnya (bukan pengajuannya sendiri)
+     * - Admin Pusat hanya memutuskan pengajuan Kepala Toko; selebihnya hanya memantau
+     */
+    public function isDecidableBy(User $user): bool
+    {
+        $requesterIsKepalaToko = $this->employee?->user?->isKepalaToko() ?? false;
+
+        if ($user->isAdminPusat()) {
+            return $requesterIsKepalaToko;
+        }
+
+        return $user->managesBranch((int) $this->branch_id)
+            && ! $requesterIsKepalaToko
+            && $this->employee_id !== $user->employee?->id;
+    }
+
     public function employee(): BelongsTo
     {
         return $this->belongsTo(Employee::class);

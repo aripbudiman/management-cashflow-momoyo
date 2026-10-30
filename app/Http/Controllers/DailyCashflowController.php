@@ -29,6 +29,7 @@ class DailyCashflowController extends Controller
             'today' => today()->toDateString(),
             'wallets' => CashflowService::WALLETS,
             'cashflow' => $branch ? $this->cashflows->findByBranchDate($branch->id, $date) : null,
+            'purchases' => $branch ? $this->service->purchasesFor($branch->id, $date) : [],
             'history' => $branch ? $this->cashflows->historyForBranch($branch->id) : [],
         ]);
     }

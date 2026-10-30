@@ -21,7 +21,7 @@ interface Cashflow {
     total_expense: string;
     total_net_cash: string;
     details: Array<{ payment_method: string; nominal: string }>;
-    expenses: Array<{ description: string; nominal: string; photos?: Array<{ id: number; photo_full_url: string }> }>;
+    expenses: Array<{ description: string; nominal: string; stock_transaction_id?: number | null; photos?: Array<{ id: number; photo_full_url: string }> }>;
     setoran_transfers: Array<{ transfer_amount: string; proofs?: Array<{ id: number; photo_full_url: string }> }>;
 }
 
@@ -31,10 +31,11 @@ const props = defineProps<{
     today: string;
     wallets: Record<string, string>;
     cashflow: Cashflow | null;
+    purchases: Array<{ id: number; label: string; nominal: number; items: string[] }>;
     history: Array<{ id: number; report_date: string; total_omset: string; total_net_cash: string; status: string; revision_notes: string | null }>;
 }>();
 
-type ExpenseRow = { description: string; nominal: number | ''; photos: File[]; keep: Array<{ id: number; url: string }> };
+type ExpenseRow = { description: string; nominal: number | ''; stock_transaction_id: number | null; photos: File[]; keep: Array<{ id: number; url: string }> };
 
 const form = useForm<{
     report_date: string;
@@ -65,6 +66,14 @@ const releaseUrl = (f: File) => {
 };
 const amountTouched = ref(false);
 
+const purchaseRow = (p: { id: number; label: string; nominal: number }): ExpenseRow => ({
+    description: p.label,
+    nominal: p.nominal > 0 ? p.nominal : '',
+    stock_transaction_id: p.id,
+    photos: [],
+    keep: [],
+});
+
 const init = () => {
     form.clearErrors();
     form.report_date = props.date;
@@ -74,12 +83,16 @@ const init = () => {
         w[k] = found ? Number(found.nominal) : '';
     });
     form.wallets = w;
-    form.expenses = (props.cashflow?.expenses ?? []).map((e) => ({
-        description: e.description,
-        nominal: Number(e.nominal),
-        photos: [],
-        keep: (e.photos ?? []).map((p) => ({ id: p.id, url: p.photo_full_url })),
-    }));
+    // Closing baru: barang masuk hari itu otomatis jadi baris pengeluaran (bisa dihapus). Closing yang sudah ada memakai data tersimpan.
+    form.expenses = props.cashflow
+        ? props.cashflow.expenses.map((e) => ({
+              description: e.description,
+              nominal: Number(e.nominal),
+              stock_transaction_id: e.stock_transaction_id ?? null,
+              photos: [],
+              keep: (e.photos ?? []).map((p) => ({ id: p.id, url: p.photo_full_url })),
+          }))
+        : props.purchases.map(purchaseRow);
     form.notes = props.cashflow?.notes ?? '';
     const tr = props.cashflow?.setoran_transfers[0];
     form.proofs.forEach(releaseUrl);
@@ -124,7 +137,11 @@ const statusMap: Record<string, { label: string; cls: string }> = {
 };
 
 const changeDate = (e: Event) => router.get('/cashflows', { date: (e.target as HTMLInputElement).value }, { preserveState: true, preserveScroll: true });
-const addExpense = () => form.expenses.push({ description: '', nominal: '', photos: [], keep: [] });
+const addExpense = () => form.expenses.push({ description: '', nominal: '', stock_transaction_id: null, photos: [], keep: [] });
+// Barang masuk hari itu yang tidak (atau belum) masuk ke daftar pengeluaran
+const availablePurchases = computed(() => props.purchases.filter((p) => !form.expenses.some((e) => e.stock_transaction_id === p.id)));
+const purchaseItems = (e: ExpenseRow): string[] => props.purchases.find((p) => p.id === e.stock_transaction_id)?.items ?? [e.description.replace(/^Barang masuk:\s*/, '')];
+const addPurchase = (p: { id: number; label: string; nominal: number }) => form.expenses.push(purchaseRow(p));
 const MAX_PROOFS = 5;
 const addProofs = (e: Event) => {
     const input = e.target as HTMLInputElement;
@@ -168,6 +185,7 @@ const submit = () => {
         expenses: d.expenses.map((e) => ({
             description: e.description,
             nominal: e.nominal,
+            stock_transaction_id: e.stock_transaction_id,
             photos: e.photos,
             keep_photo_ids: e.keep.map((k) => k.id),
         })),
@@ -264,8 +282,24 @@ const submit = () => {
                         </CardHeader>
                         <CardContent class="space-y-2 p-4">
                             <p v-if="!form.expenses.length" class="text-xs text-gray-400">Tidak ada pengeluaran. Klik Tambah (contoh: telur 20.000, parkir 15.000).</p>
-                            <div v-for="(e, i) in form.expenses" :key="i" class="space-y-1.5 rounded-xl border border-transparent pb-1">
-                                <div class="flex items-start gap-2">
+                            <div v-for="(e, i) in form.expenses" :key="i" class="space-y-2.5 rounded-xl border p-3" :class="e.stock_transaction_id ? 'border-sky-200 bg-sky-50/50 dark:border-sky-900 dark:bg-sky-950/20' : 'border-gray-200 dark:border-zinc-800'">
+                                <!-- Barang masuk: ringkasan item (keterangan otomatis, nominal bisa disesuaikan dengan nota) -->
+                                <template v-if="e.stock_transaction_id">
+                                    <div class="flex items-center justify-between gap-2">
+                                        <Badge class="bg-sky-100 text-[11px] text-sky-700 hover:bg-sky-100">Barang Masuk / Belanja</Badge>
+                                        <Button type="button" size="sm" variant="ghost" class="h-7 gap-1 px-2 text-xs text-rose-500 hover:text-rose-600" title="Tidak dimasukkan ke pengeluaran" @click="removeExpense(i)"><Trash2 class="size-3.5" /> Hapus</Button>
+                                    </div>
+                                    <ul class="space-y-0.5 text-sm text-gray-700 dark:text-zinc-300">
+                                        <li v-for="(it, ii) in purchaseItems(e)" :key="ii" class="flex gap-2"><span class="text-sky-400">•</span><span>{{ it }}</span></li>
+                                    </ul>
+                                    <div class="flex items-center justify-between gap-3 border-t border-sky-100 pt-2 dark:border-sky-900">
+                                        <Label class="text-xs text-gray-500">Total belanja</Label>
+                                        <div class="w-40"><RupiahInput v-model="e.nominal" class="h-10 rounded-xl bg-white" /></div>
+                                    </div>
+                                    <InputError :message="err(`expenses.${i}.nominal`)" />
+                                    <InputError :message="err(`expenses.${i}.description`)" />
+                                </template>
+                                <div v-else class="flex items-start gap-2">
                                     <div class="flex-1 space-y-1">
                                         <Input v-model="e.description" placeholder="Keterangan (telur, parkir…)" class="h-10 rounded-xl" />
                                         <InputError :message="err(`expenses.${i}.description`)" />
@@ -295,6 +329,13 @@ const submit = () => {
                                 <InputError :message="err(`expenses.${i}.photos`)" />
                             </div>
                             <InputError :message="form.errors.expenses" />
+                            <div v-if="availablePurchases.length" class="space-y-1.5 rounded-xl border border-dashed border-sky-300 bg-sky-50/60 p-3 text-xs dark:bg-sky-950/20">
+                                <p class="font-semibold text-sky-700">Barang masuk hari ini yang tidak dimasukkan ke pengeluaran</p>
+                                <div v-for="p in availablePurchases" :key="p.id" class="flex items-center gap-2">
+                                    <span class="flex-1 text-gray-600">{{ p.label }}<template v-if="p.nominal"> · {{ rupiah(p.nominal) }}</template></span>
+                                    <Button type="button" size="sm" variant="outline" class="h-7 gap-1 rounded-lg" @click="addPurchase(p)"><Plus class="size-3" /> Masukkan</Button>
+                                </div>
+                            </div>
                             <div class="flex justify-between rounded-xl bg-gray-50 px-3 py-2 text-sm dark:bg-zinc-900">
                                 <span class="text-gray-500">Total Pengeluaran</span><b class="font-mono">{{ rupiah(totalExpense) }}</b>
                             </div>
@@ -313,6 +354,7 @@ const submit = () => {
                                 <span class="text-sm font-semibold text-rose-700">Total Setor (Tunai − Pengeluaran)</span>
                                 <b class="font-mono text-lg text-rose-700">{{ rupiah(totalSetor) }}</b>
                             </div>
+                            <p v-if="totalSetor < 0" class="-mt-1 flex items-start gap-1.5 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700"><AlertCircle class="mt-0.5 size-3.5 shrink-0" /> Pengeluaran lebih besar dari Tunai di Kasir. Isi dulu Tunai di Kasir (bagian 1), atau hapus/sesuaikan pengeluaran.</p>
 
                             <div class="space-y-1">
                                 <Label class="text-xs font-semibold">Nominal Transfer</Label>

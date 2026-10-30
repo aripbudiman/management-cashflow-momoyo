@@ -15,8 +15,15 @@ class AttendanceRecapController extends Controller
 
     public function index(Request $request): Response
     {
-        $branches = Branch::where('is_active', true)->orderBy('branch_name')->get(['id', 'branch_code', 'branch_name']);
-        $branchId = (int) $request->input('branch_id', $branches->first()?->id);
+        $user = $request->user();
+        $isKepalaToko = $user->isKepalaToko();
+
+        // Kepala Toko hanya melihat rekap cabangnya; Admin Pusat semua cabang
+        $branches = Branch::where('is_active', true)
+            ->when($isKepalaToko, fn ($q) => $q->where('id', $user->employee?->current_branch_id))
+            ->orderBy('branch_name')
+            ->get(['id', 'branch_code', 'branch_name']);
+        $branchId = $isKepalaToko ? (int) $branches->first()?->id : (int) $request->input('branch_id', $branches->first()?->id);
         $monthParam = preg_match('/^\d{4}-\d{2}$/', (string) $request->input('month')) ? $request->input('month') : now()->format('Y-m');
         $month = Carbon::createFromFormat('Y-m-d', $monthParam.'-01')->startOfDay();
 

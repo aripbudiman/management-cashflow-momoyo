@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Head, router } from '@inertiajs/vue3';
 import { BarChart3 } from '@lucide/vue';
+import { computed } from 'vue';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { fmtDate, rupiah } from '@/lib/format';
@@ -22,6 +23,7 @@ interface MonthlyRow extends Totals {
     branch_name: string;
     days: number;
     verified_days: number;
+    central_expense: number;
 }
 
 const props = defineProps<{
@@ -31,7 +33,7 @@ const props = defineProps<{
     branchId: number;
     branches: Array<{ id: number; branch_name: string }>;
     wallets: Record<string, string>;
-    report: { rows: Array<DailyRow | MonthlyRow>; totals: Totals };
+    report: { rows: Array<DailyRow | MonthlyRow>; totals: Totals & { central_expense?: number; owner_expense?: number } };
 }>();
 
 const go = (params: Record<string, string | number>) =>
@@ -44,6 +46,8 @@ const statusMap: Record<string, { label: string; cls: string }> = {
 };
 const selectCls = 'h-9 rounded-md border border-gray-200 bg-white px-3 text-sm dark:border-zinc-700 dark:bg-zinc-900';
 const n = (v: number) => (v ? new Intl.NumberFormat('id-ID').format(v) : '-');
+
+const labaBersih = computed(() => props.report.totals.total_omset - props.report.totals.total_expense - (props.report.totals.central_expense ?? 0) - (props.report.totals.owner_expense ?? 0));
 </script>
 
 <template>
@@ -87,6 +91,7 @@ const n = (v: number) => (v ? new Intl.NumberFormat('id-ID').format(v) : '-');
                             <th v-for="(label, k) in wallets" :key="k" class="px-3 py-3 text-right font-bold">{{ label }}</th>
                             <th class="px-3 py-3 text-right font-bold">Total Omset</th>
                             <th class="px-3 py-3 text-right font-bold">Pengeluaran</th>
+                            <th v-if="mode === 'monthly'" class="px-3 py-3 text-right font-bold">Peng. Pusat</th>
                             <th class="px-3 py-3 text-right font-bold">Total Setor</th>
                             <th v-if="mode === 'daily'" class="px-3 py-3 font-bold">Status</th>
                         </tr>
@@ -105,6 +110,7 @@ const n = (v: number) => (v ? new Intl.NumberFormat('id-ID').format(v) : '-');
                             <td v-for="(label, k) in wallets" :key="k" class="px-3 py-2.5 text-right font-mono">{{ n(r.wallets[k]) }}</td>
                             <td class="px-3 py-2.5 text-right font-mono font-bold">{{ n(r.total_omset) }}</td>
                             <td class="px-3 py-2.5 text-right font-mono text-red-600">{{ n(r.total_expense) }}</td>
+                            <td v-if="mode === 'monthly'" class="px-3 py-2.5 text-right font-mono text-red-600">{{ n((r as MonthlyRow).central_expense) }}</td>
                             <td class="px-3 py-2.5 text-right font-mono font-bold text-emerald-700">{{ n(r.total_setor) }}</td>
                             <td v-if="mode === 'daily'" class="px-3 py-2.5">
                                 <Badge variant="outline" class="border text-[10px] font-bold" :class="statusMap[(r as DailyRow).status]?.cls">{{ statusMap[(r as DailyRow).status]?.label }}</Badge>
@@ -120,12 +126,20 @@ const n = (v: number) => (v ? new Intl.NumberFormat('id-ID').format(v) : '-');
                             <td v-for="(label, k) in wallets" :key="k" class="px-3 py-3 text-right font-mono">{{ n(report.totals.wallets[k]) }}</td>
                             <td class="px-3 py-3 text-right font-mono">{{ n(report.totals.total_omset) }}</td>
                             <td class="px-3 py-3 text-right font-mono text-red-600">{{ n(report.totals.total_expense) }}</td>
+                            <td v-if="mode === 'monthly'" class="px-3 py-3 text-right font-mono text-red-600">{{ n(report.totals.central_expense ?? 0) }}</td>
                             <td class="px-3 py-3 text-right font-mono text-emerald-700">{{ n(report.totals.total_setor) }}</td>
                             <td v-if="mode === 'daily'" />
                         </tr>
                     </tfoot>
                 </table>
             </CardContent>
+            <div v-if="mode === 'monthly'" class="space-y-1.5 border-t p-4 text-sm">
+                <div class="flex justify-between"><span class="text-gray-500">Total Omset</span><b class="font-mono">{{ rupiah(report.totals.total_omset) }}</b></div>
+                <div class="flex justify-between"><span class="text-gray-500">Pengeluaran Cabang</span><b class="font-mono text-red-600">− {{ rupiah(report.totals.total_expense) }}</b></div>
+                <div class="flex justify-between"><span class="text-gray-500">Pengeluaran Pusat (dari kas cabang)</span><b class="font-mono text-red-600">− {{ rupiah(report.totals.central_expense ?? 0) }}</b></div>
+                <div class="flex justify-between"><span class="text-gray-500">Pengeluaran Pusat (uang bos)</span><b class="font-mono text-red-600">− {{ rupiah(report.totals.owner_expense ?? 0) }}</b></div>
+                <div class="flex justify-between border-t pt-2"><span class="font-semibold">Laba Bersih</span><b class="font-mono text-lg" :class="labaBersih < 0 ? 'text-red-600' : 'text-emerald-600'">{{ rupiah(labaBersih) }}</b></div>
+            </div>
         </Card>
     </div>
 </template>

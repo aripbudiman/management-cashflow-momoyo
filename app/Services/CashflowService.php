@@ -6,10 +6,13 @@ use App\Models\Branch;
 use App\Models\CashflowExpensePhoto;
 use App\Models\DailyCashflow;
 use App\Models\SetoranTransferProof;
+use App\Models\StockTransaction;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class CashflowService
@@ -24,6 +27,36 @@ class CashflowService
         'gofood' => 'GoFood',
         'shopeefood' => 'ShopeeFood',
     ];
+
+    /**
+     * Barang masuk (pembelian) aktif pada hari itu, siap dijadikan baris pengeluaran.
+     * Nominal = estimasi dari harga master × qty; staff bisa mengubah/menghapusnya di form.
+     *
+     * @return Collection<int, array{id: int, label: string, nominal: float, items: array<int, string>}>
+     */
+    public function purchasesFor(int $branchId, string $date): Collection
+    {
+        return StockTransaction::query()
+            ->with(['items.item:id,name', 'items.unit:id,name'])
+            ->where('branch_id', $branchId)
+            ->where('type', 'in')
+            ->where('status', 'active')
+            ->whereDate('moved_at', $date)
+            ->orderBy('id')
+            ->get()
+            ->map(function (StockTransaction $t): array {
+                $items = $t->items->where('type', 'in');
+                $names = $items->map(fn ($i) => ($i->item?->name ?? 'Barang').' '.rtrim(rtrim(number_format((float) $i->input_qty, 2, '.', ''), '0'), '.').' '.($i->unit?->name ?? ''))->map(fn ($s) => trim($s))->values()->all();
+
+                return [
+                    'id' => $t->id,
+                    'label' => 'Barang masuk: '.Str::limit(implode(', ', $names), 200),
+                    'nominal' => round((float) $items->sum(fn ($i) => (float) $i->base_qty * (float) $i->unit_price), 2),
+                    'items' => $names,
+                ];
+            })
+            ->values();
+    }
 
     /**
      * Simpan (atau perbarui) closing harian satu cabang. Detail, pengeluaran, dan bukti transfer diganti utuh.
@@ -62,10 +95,16 @@ class CashflowService
                 $oldPhotos = CashflowExpensePhoto::whereIn('expense_id', $cashflow->expenses()->select('id'))->get()->keyBy('id');
                 $keptPaths = [];
 
+                $validStockIds = StockTransaction::where('branch_id', $branch->id)->where('type', 'in')
+                    ->whereIn('id', collect($data['expenses'] ?? [])->pluck('stock_transaction_id')->filter()->all())
+                    ->pluck('id')->all();
+
                 $cashflow->expenses()->delete();
                 foreach ($data['expenses'] ?? [] as $expenseData) {
+                    $stockId = in_array((int) ($expenseData['stock_transaction_id'] ?? 0), $validStockIds, true) ? (int) $expenseData['stock_transaction_id'] : null;
                     $expense = $cashflow->expenses()->create([
-                        'category' => 'Operasional Harian',
+                        'stock_transaction_id' => $stockId,
+                        'category' => $stockId ? 'Barang Masuk' : 'Operasional Harian',
                         'description' => $expenseData['description'],
                         'nominal' => (float) $expenseData['nominal'],
                     ]);

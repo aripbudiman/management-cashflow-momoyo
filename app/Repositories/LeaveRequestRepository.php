@@ -15,7 +15,7 @@ class LeaveRequestRepository
     public function paginateForAdmin(array $filters, int $perPage = 15): LengthAwarePaginator
     {
         return LeaveRequest::query()
-            ->with(['employee:id,full_name,nik', 'branch:id,branch_name', 'approver:id,name'])
+            ->with(['employee:id,full_name,nik,user_id', 'employee.user:id,role_id', 'employee.user.role:id,name', 'branch:id,branch_name', 'approver:id,name'])
             ->when($filters['search'] ?? null, fn ($q, $v) => $q->whereHas('employee', fn ($e) => $e
                 ->where('full_name', 'ilike', "%{$v}%")
                 ->orWhere('nik', 'ilike', "%{$v}%")))

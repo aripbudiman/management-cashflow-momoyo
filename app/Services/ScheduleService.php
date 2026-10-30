@@ -21,18 +21,20 @@ class ScheduleService
     ) {}
 
     /**
-     * Data grid jadwal karyawan x tanggal untuk satu cabang dan bulan.
+     * Data grid jadwal karyawan x tanggal untuk satu cabang dan satu minggu (Senin–Minggu).
+     * Tanggal yang sudah lewat ditandai locked: sudah terpakai (absensi/rekap) sehingga tidak boleh diubah.
      *
      * @return array<string, mixed>
      */
-    public function grid(Branch $branch, Carbon $month): array
+    public function grid(Branch $branch, Carbon $weekStart): array
     {
-        $start = $month->copy()->startOfMonth();
-        $end = $month->copy()->endOfMonth();
+        $start = $weekStart->copy()->startOfWeek(Carbon::MONDAY);
+        $end = $start->copy()->addDays(6);
+        $today = Carbon::today();
 
         $schedules = $this->schedules->forBranchBetween($branch->id, $start, $end);
 
-        // Karyawan aktif cabang ini + karyawan yang pernah dijadwalkan di cabang ini pada bulan tsb (snapshot)
+        // Karyawan aktif cabang ini + karyawan yang pernah dijadwalkan di cabang ini pada minggu tsb (snapshot)
         $employees = Employee::query()
             ->where(function ($q) use ($branch, $schedules) {
                 $q->where(fn ($w) => $w->where('current_branch_id', $branch->id)->where('status', 'active'))
@@ -41,17 +43,29 @@ class ScheduleService
             ->orderBy('full_name')
             ->get(['id', 'full_name', 'nik', 'current_branch_id', 'status']);
 
+        // Karyawan yang cuti/izin/sakit disetujui pada minggu ini: hari tsb tidak bisa dijadwalkan
+        $leaveByKey = [];
+        foreach ($this->leaves->approvedForBranchBetween($branch->id, $start, $end) as $leave) {
+            foreach (CarbonPeriod::create($leave->start_date, $leave->end_date) as $d) {
+                $leaveByKey[$leave->employee_id.'|'.$d->toDateString()] = LeaveRequestService::TYPE_LABELS[$leave->type] ?? $leave->type;
+            }
+        }
+
         $days = [];
-        for ($d = $start->copy(); $d->lte($end); $d->addDay()) {
+        foreach (CarbonPeriod::create($start, $end) as $d) {
             $days[] = [
                 'date' => $d->toDateString(),
                 'day' => $d->day,
                 'weekday' => $d->translatedFormat('D'),
                 'is_sunday' => $d->isSunday(),
+                'locked' => $d->lt($today),
+                'is_today' => $d->isSameDay($today),
             ];
         }
 
         return [
+            'week_start' => $start->toDateString(),
+            'week_end' => $end->toDateString(),
             'days' => $days,
             'employees' => $employees->map(fn (Employee $e) => [
                 'id' => $e->id,
@@ -66,7 +80,58 @@ class ScheduleService
                 'is_off' => $s->is_off,
                 'shift_id' => $s->shift_id,
             ])->values(),
+            'leaves' => $leaveByKey,
         ];
+    }
+
+    /**
+     * Salin jadwal minggu sebelumnya ke minggu target.
+     * Hanya mengisi sel kosong, melewati tanggal yang sudah lewat dan hari cuti/izin/sakit.
+     * Shift disalin sebagai snapshot terbaru dari master shift (shift yang sudah dihapus dilewati).
+     */
+    public function copyPreviousWeek(Branch $branch, Carbon $targetWeekStart, int $userId): int
+    {
+        $target = $targetWeekStart->copy()->startOfWeek(Carbon::MONDAY);
+        $source = $target->copy()->subWeek();
+        $today = Carbon::today();
+
+        $existing = $this->schedules->forBranchBetween($branch->id, $target, $target->copy()->addDays(6))
+            ->map(fn (EmployeeSchedule $s) => $s->employee_id.'|'.$s->date->toDateString())
+            ->flip();
+
+        $leaveKeys = [];
+        foreach ($this->leaves->approvedForBranchBetween($branch->id, $target, $target->copy()->addDays(6)) as $leave) {
+            foreach (CarbonPeriod::create($leave->start_date, $leave->end_date) as $d) {
+                $leaveKeys[$leave->employee_id.'|'.$d->toDateString()] = true;
+            }
+        }
+
+        $activeEmployeeIds = Employee::where('current_branch_id', $branch->id)->where('status', 'active')->pluck('id')->flip();
+        $shifts = Shift::where('branch_id', $branch->id)->get()->keyBy('id');
+
+        $entries = [];
+        foreach ($this->schedules->forBranchBetween($branch->id, $source, $source->copy()->addDays(6)) as $row) {
+            $newDate = $row->date->copy()->addWeek();
+            $key = $row->employee_id.'|'.$newDate->toDateString();
+
+            if ($newDate->lt($today) || isset($existing[$key]) || isset($leaveKeys[$key]) || ! isset($activeEmployeeIds[$row->employee_id])) {
+                continue;
+            }
+            if (! $row->is_off && ! $shifts->has($row->shift_id)) {
+                continue;
+            }
+
+            $entries[] = [
+                'employee_id' => $row->employee_id,
+                'date' => $newDate->toDateString(),
+                'type' => $row->is_off ? 'off' : 'shift',
+                'shift_id' => $row->is_off ? null : $row->shift_id,
+            ];
+        }
+
+        $this->save($branch, $entries, $userId);
+
+        return count($entries);
     }
 
     /**

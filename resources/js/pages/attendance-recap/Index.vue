@@ -13,6 +13,7 @@ interface Row {
     late: number;
     alpha: number;
     leave_days: number;
+    work_minutes: number;
     days: Array<{
         date: string;
         weekday: string;
@@ -48,6 +49,7 @@ const statusMap: Record<string, { label: string; cls: string }> = {
     belum: { label: 'Belum', cls: 'bg-gray-100 text-gray-500' },
 };
 const badge = (st: string) => statusMap[st] ?? { label: st, cls: 'bg-gray-100 text-gray-600' };
+const hours = (m: number) => `${Math.floor(m / 60)}j ${String(m % 60).padStart(2, '0')}m`;
 const fmtDate = (d: string) => d.split('-').reverse().join('/');
 
 const cols: Array<{ key: keyof Row; label: string; cls?: string }> = [
@@ -97,6 +99,7 @@ const cols: Array<{ key: keyof Row; label: string; cls?: string }> = [
                         <tr class="border-b bg-gray-50 text-xs dark:bg-zinc-900">
                             <th class="p-3 text-left">Karyawan</th>
                             <th v-for="c in cols" :key="c.key" class="p-3 text-center">{{ c.label }}</th>
+                            <th class="p-3 text-center">Total Jam Kerja</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -108,9 +111,10 @@ const cols: Array<{ key: keyof Row; label: string; cls?: string }> = [
                             <td v-for="c in cols" :key="c.key" class="p-3 text-center font-mono font-bold" :class="c.cls">
                                 {{ r[c.key] }}
                             </td>
+                            <td class="p-3 text-center font-mono font-bold text-rose-600">{{ hours(r.work_minutes) }}</td>
                         </tr>
                         <tr v-if="!recap.rows.length">
-                            <td :colspan="cols.length + 1" class="p-8 text-center text-gray-400">Belum ada data.</td>
+                            <td :colspan="cols.length + 2" class="p-8 text-center text-gray-400">Belum ada data.</td>
                         </tr>
                     </tbody>
                     <tfoot v-if="recap.rows.length">
@@ -124,6 +128,7 @@ const cols: Array<{ key: keyof Row; label: string; cls?: string }> = [
                             >
                                 {{ recap.totals[c.key] }}
                             </td>
+                            <td class="p-3 text-center font-mono text-rose-600">{{ hours(recap.totals.work_minutes) }}</td>
                         </tr>
                     </tfoot>
                 </table>
@@ -149,6 +154,7 @@ const cols: Array<{ key: keyof Row; label: string; cls?: string }> = [
                             <span class="text-red-600">{{ r.alpha }} alpha</span>
                             <span class="text-blue-600">{{ r.leave_days }} izin/cuti</span>
                             <span class="text-gray-500">{{ r.off_days }} libur</span>
+                            <span class="text-rose-600">{{ hours(r.work_minutes) }} kerja</span>
                         </div>
                     </summary>
                     <CardContent class="overflow-x-auto border-t p-0">
